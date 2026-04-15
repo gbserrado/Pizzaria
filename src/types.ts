@@ -29,13 +29,14 @@ export interface Order {
   items: CartItem[];
   total: number;
   status: 'pending' | 'preparing' | 'delivering' | 'completed' | 'cancelled';
+  deliveryType: 'delivery' | 'pickup';
+  deliveryFee: number;
   address: {
     street: string;
     number: string;
     neighborhood: string;
     complement: string;
   };
-  paymentMethod: string;
   createdAt: any;
   couponCode?: string;
   discount?: number;
@@ -146,37 +147,39 @@ export const PIZZAS: Pizza[] = [
   }
 ];
 
-export const NEIGHBORHOODS = [
-  'Conselheiro Paulino',
-  'Chácara Paraíso',
-  'Prado',
-  'Jardim Ouro Preto',
-  'Riograndina',
-  'Duas Pedras',
-  'Centro',
-  'Olaria',
-  'Cônego',
-  'Cascatinha',
-  'Braunes',
-  'Paissandu',
-  'Mury',
-  'Lumiar',
-  'São Pedro da Serra',
-  'Amparo',
-  'Campo do Coelho',
-  'Conquista',
-  'Vargem Alta',
-  'Stucky',
-  'Debossan',
-  'Ponte da Saudade',
-  'Ypu',
-  'Vila Amélia',
-  'Vila Nova',
-  'Suspiro',
-  'Bela Vista',
-  'Cordoeira',
-  'Granja Spinelli'
-].sort();
+export const DELIVERY_FEES: { name: string; fee: number }[] = [
+  { name: 'Conselheiro Paulino', fee: 5.00 },
+  { name: 'Chácara Paraíso', fee: 7.00 },
+  { name: 'Centro', fee: 10.00 },
+  { name: 'Olaria', fee: 12.00 },
+  { name: 'Prado', fee: 6.00 },
+  { name: 'Jardim Ouro Preto', fee: 6.00 },
+  { name: 'Riograndina', fee: 8.00 },
+  { name: 'Duas Pedras', fee: 8.00 },
+  { name: 'Cônego', fee: 12.00 },
+  { name: 'Cascatinha', fee: 15.00 },
+  { name: 'Braunes', fee: 10.00 },
+  { name: 'Paissandu', fee: 10.00 },
+  { name: 'Mury', fee: 20.00 },
+  { name: 'Lumiar', fee: 35.00 },
+  { name: 'São Pedro da Serra', fee: 35.00 },
+  { name: 'Amparo', fee: 25.00 },
+  { name: 'Campo do Coelho', fee: 15.00 },
+  { name: 'Conquista', fee: 20.00 },
+  { name: 'Vargem Alta', fee: 25.00 },
+  { name: 'Stucky', fee: 20.00 },
+  { name: 'Debossan', fee: 20.00 },
+  { name: 'Ponte da Saudade', fee: 15.00 },
+  { name: 'Ypu', fee: 10.00 },
+  { name: 'Vila Amélia', fee: 10.00 },
+  { name: 'Vila Nova', fee: 10.00 },
+  { name: 'Suspiro', fee: 10.00 },
+  { name: 'Bela Vista', fee: 12.00 },
+  { name: 'Cordoeira', fee: 12.00 },
+  { name: 'Granja Spinelli', fee: 15.00 }
+].sort((a, b) => a.name.localeCompare(b.name));
+
+export const NEIGHBORHOODS = DELIVERY_FEES.map(f => f.name);
 
 export const SIZES: { label: PizzaSize; multiplier: number }[] = [
   { label: 'Pequena', multiplier: 0.8 },
