@@ -31,7 +31,8 @@ import {
   Ticket,
   Beer,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Utensils
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,8 +53,9 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Toaster, toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { PIZZAS, SIZES, EXTRA_INGREDIENTS, NEIGHBORHOODS, DELIVERY_FEES, type Pizza, type PizzaSize, type Order, type CartItem } from './types';
+import { PIZZAS, SIZES, EXTRA_INGREDIENTS, NEIGHBORHOODS, DELIVERY_FEES, type Pizza, type PizzaSize, type Order, type CartItem, type OrderStatus, type StoreConfig, type PaymentMethod } from './types';
 import { auth, db } from './firebase';
+import AdminDashboard from './components/AdminDashboard';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -71,11 +73,12 @@ import {
   onSnapshot, 
   orderBy,
   serverTimestamp,
-  getDocs
+  getDocs,
+  doc
 } from 'firebase/firestore';
 
 
-type PaymentMethod = 'cash_delivery' | 'card_delivery' | 'pix_now';
+
 
 const ImageWithSkeleton = ({ src, alt, className, ...props }: any) => {
   const [loaded, setLoaded] = useState(false);
@@ -186,12 +189,6 @@ export default function App() {
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
-  const [isAdminView, setIsAdminView] = useState(false);
-
-  // Coupon State
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
-
   // Checkout State
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -202,8 +199,100 @@ export default function App() {
     complement: '',
     observations: '',
     needChange: false,
-    changeFor: ''
+    changeFor: '',
+    paymentMethod: 'cash_delivery' as PaymentMethod
   });
+
+  const [isAdminView, setIsAdminView] = useState(window.location.pathname === '/admin');
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ lojaAberta: true });
+  const [menuStatus, setMenuStatus] = useState<Record<string, boolean>>({});
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [currentOrderStatus, setCurrentOrderStatus] = useState<OrderStatus>('received');
+  const successAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Listen to store config and menu
+  useEffect(() => {
+    const unsubConfig = onSnapshot(doc(db, 'config', 'store'), (snapshot) => {
+      if (snapshot.exists()) setStoreConfig(snapshot.data() as StoreConfig);
+    });
+
+    const unsubMenu = onSnapshot(collection(db, 'menu'), (snapshot) => {
+      const status: Record<string, boolean> = {};
+      snapshot.docs.forEach(doc => {
+        status[doc.id] = doc.data().available;
+      });
+      setMenuStatus(status);
+    });
+
+    return () => {
+      unsubConfig();
+      unsubMenu();
+    };
+  }, []);
+
+  // Listen to current order status when confirmed
+  useEffect(() => {
+    if (checkoutStep === 'confirmation' && lastOrderId) {
+      // Play success sound
+      if (successAudioRef.current) {
+        successAudioRef.current.play().catch(e => console.log('Audio play failed:', e));
+      }
+
+      const unsubOrder = onSnapshot(doc(db, 'orders', lastOrderId), (snapshot) => {
+        if (snapshot.exists()) {
+          setCurrentOrderStatus(snapshot.data().status as OrderStatus);
+        }
+      });
+      return () => unsubOrder();
+    }
+  }, [checkoutStep, lastOrderId]);
+
+  // Listen to loyalty points when phone is provided
+  useEffect(() => {
+    if (customerInfo.phone && customerInfo.phone.length >= 10) {
+      const unsubLoyalty = onSnapshot(doc(db, 'loyalty', customerInfo.phone), (snapshot) => {
+        if (snapshot.exists()) {
+          setLoyaltyPoints(snapshot.data().points || 0);
+        }
+      });
+      return () => unsubLoyalty();
+    }
+  }, [customerInfo.phone]);
+
+  // Handle URL changes for admin
+  useEffect(() => {
+    const handlePathChange = () => {
+      setIsAdminView(window.location.pathname === '/admin');
+    };
+    window.addEventListener('popstate', handlePathChange);
+    return () => window.removeEventListener('popstate', handlePathChange);
+  }, []);
+
+  const navigateToAdmin = () => {
+    window.history.pushState({}, '', '/admin');
+    setIsAdminView(true);
+  };
+
+  const navigateToHome = () => {
+    window.history.pushState({}, '', '/');
+    setIsAdminView(false);
+  };
+
+  // if (isAdminView) {
+  //   return <AdminDashboard />;
+  // }
+
+  const displayPizzas = useMemo(() => {
+    return PIZZAS.map(p => ({
+      ...p,
+      available: menuStatus[p.id] !== false
+    }));
+  }, [menuStatus]);
+
+  // Coupon State
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [deliveryFee, setDeliveryFee] = useState(0);
 
@@ -368,6 +457,8 @@ export default function App() {
     try {
       const orderData = {
         userId: user.uid,
+        customerName: customerInfo.name,
+        phone: customerInfo.phone,
         items: cart.map(item => ({
           name: item.pizza.name,
           name2: item.pizza2?.name || null,
@@ -377,8 +468,9 @@ export default function App() {
           price: item.totalPrice
         })),
         total: cartTotal,
-        status: 'pending',
+        status: 'received',
         deliveryType,
+        paymentMethod: customerInfo.paymentMethod,
         deliveryFee,
         address: {
           ...customerInfo,
@@ -642,7 +734,7 @@ export default function App() {
   );
   const CustomizationContent = () => {
     const [secondPizzaCategory, setSecondPizzaCategory] = useState<string>('Tradicional');
-    const availableSecondPizzas = PIZZAS.filter(p => p.category !== 'Bebidas' && p.available);
+    const availableSecondPizzas = displayPizzas.filter(p => p.category !== 'Bebidas' && p.available);
 
     return (
       <div className="space-y-8 py-6 md:py-4">
@@ -656,6 +748,11 @@ export default function App() {
               </div>
               <button 
                 onClick={() => {
+                  const currentSize = SIZES.find(s => s.label === customization.size);
+                  if (currentSize?.maxFlavors === 1) {
+                    toast.error(`O tamanho ${currentSize.label} não permite meio a meio.`);
+                    return;
+                  }
                   setIsHalfAndHalf(!isHalfAndHalf);
                   if (!isHalfAndHalf) setSecondPizza(null);
                 }}
@@ -729,7 +826,13 @@ export default function App() {
                 return (
                   <button
                     key={size.label}
-                    onClick={() => setCustomization(prev => ({ ...prev, size: size.label }))}
+                    onClick={() => {
+                      setCustomization(prev => ({ ...prev, size: size.label }));
+                      if (size.maxFlavors === 1) {
+                        setIsHalfAndHalf(false);
+                        setSecondPizza(null);
+                      }
+                    }}
                     className={`p-4 rounded-xl border text-sm font-bold transition-all flex flex-col items-start gap-1 relative overflow-hidden group ${
                       customization.size === size.label 
                         ? 'bg-gold border-gold text-deep-black' 
@@ -824,7 +927,25 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-deep-black">
+      <audio ref={successAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" />
       <Toaster position="top-center" richColors />
+
+      {!storeConfig.lojaAberta && !isAdminView && (
+        <div className="fixed inset-0 z-[100] bg-deep-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-gold/10 p-6 rounded-full mb-6 border border-gold/20">
+            <Clock className="h-16 w-16 text-gold animate-pulse" />
+          </div>
+          <h2 className="text-4xl font-black uppercase italic text-white mb-2">Loja Fechada</h2>
+          <p className="text-white/60 font-medium uppercase tracking-widest max-w-xs">
+            No momento não estamos aceitando pedidos pelo site. Por favor, volte mais tarde!
+          </p>
+          <div className="mt-8 flex gap-4">
+            <Button variant="outline" className="border-white/10 text-white" onClick={() => window.location.href = 'tel:22999999999'}>
+              <Phone className="mr-2 h-4 w-4" /> Ligar para Loja
+            </Button>
+          </div>
+        </div>
+      )}
 
       {isAdminView ? (
         <AdminDashboard />
@@ -1006,6 +1127,7 @@ export default function App() {
                     { id: 'Especial', label: 'Especial', icon: Star },
                     { id: 'Premium', label: 'Premium', icon: Ticket },
                     { id: 'Doce', label: 'Doces', icon: Star },
+                    { id: 'Sanduíches', label: 'Sanduíches', icon: Utensils },
                     { id: 'Bebidas', label: 'Bebidas', icon: Beer }
                   ].map((cat) => (
                     <TabsTrigger 
@@ -1020,7 +1142,7 @@ export default function App() {
                 </TabsList>
               </div>
 
-              {['Destaques', 'Tradicional', 'Especial', 'Premium', 'Doce', 'Bebidas'].map((category) => (
+              {['Destaques', 'Tradicional', 'Especial', 'Premium', 'Doce', 'Sanduíches', 'Bebidas'].map((category) => (
                 <TabsContent key={category} value={category} className="mt-0 focus-visible:outline-none">
                   <div className="mb-8 space-y-1">
                     <h3 className="text-xl md:text-2xl font-black uppercase italic text-gold tracking-tight">
@@ -1028,26 +1150,28 @@ export default function App() {
                        category === 'Tradicional' ? '🍕 Sabores Tradicionais' :
                        category === 'Especial' ? '✨ Sabores Especiais' :
                        category === 'Premium' ? '🏆 Linha Premium' :
-                       category === 'Doce' ? '🍫 Pizzas Doces' : '🥤 Bebidas Geladas'}
+                       category === 'Doce' ? '🍫 Pizzas Doces' : 
+                       category === 'Sanduíches' ? '🍔 Sanduíches Artesanais' : '🥤 Bebidas Geladas'}
                     </h3>
                     <p className="text-white/40 text-xs md:text-sm font-medium">
                       {category === 'Destaques' ? 'Os sabores favoritos da nossa galera.' : 
                        category === 'Tradicional' ? 'As clássicas que nunca saem de moda.' :
                        category === 'Especial' ? 'Combinações únicas para paladares exigentes.' :
                        category === 'Premium' ? 'Ingredientes selecionados e sabores sofisticados.' :
-                       category === 'Doce' ? 'A sobremesa perfeita em forma de pizza.' : 'Para acompanhar sua pizza favorita.'}
+                       category === 'Doce' ? 'A sobremesa perfeita em forma de pizza.' : 
+                       category === 'Sanduíches' ? 'Lanches preparados com carinho e ingredientes frescos.' : 'Para acompanhar sua pizza favorita.'}
                     </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                     {(() => {
-                      const filteredPizzas = PIZZAS
+                      const filtered = displayPizzas
                         .filter(p => category === 'Destaques' ? p.popular : p.category === category)
                         .filter(p => 
                           p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           p.description.toLowerCase().includes(searchQuery.toLowerCase())
                         );
 
-                      if (filteredPizzas.length === 0) {
+                      if (filtered.length === 0) {
                         return (
                           <div className="col-span-full py-20 text-center space-y-4">
                             <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
@@ -1065,7 +1189,7 @@ export default function App() {
                         );
                       }
 
-                      return filteredPizzas.map((pizza, idx) => (
+                      return filtered.map((pizza, idx) => (
                         <motion.div
                           key={pizza.id}
                           initial={{ opacity: 0, y: 20 }}
@@ -1739,6 +1863,37 @@ export default function App() {
                         )}
                       </div>
 
+                      <div className="space-y-4 mt-6">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Método de Pagamento</Label>
+                        <RadioGroup 
+                          value={customerInfo.paymentMethod} 
+                          onValueChange={(v) => setCustomerInfo(prev => ({ ...prev, paymentMethod: v as PaymentMethod }))}
+                          className="grid grid-cols-3 gap-2"
+                        >
+                          <div className="relative">
+                            <RadioGroupItem value="cash_delivery" id="cash" className="peer sr-only" />
+                            <Label htmlFor="cash" className="flex flex-col items-center justify-center p-3 rounded-xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
+                              <Wallet className="h-5 w-5 mb-1 text-gold" />
+                              <span className="text-[8px] font-black uppercase">Dinheiro</span>
+                            </Label>
+                          </div>
+                          <div className="relative">
+                            <RadioGroupItem value="card_delivery" id="card" className="peer sr-only" />
+                            <Label htmlFor="card" className="flex flex-col items-center justify-center p-3 rounded-xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
+                              <CreditCard className="h-5 w-5 mb-1 text-gold" />
+                              <span className="text-[8px] font-black uppercase">Cartão</span>
+                            </Label>
+                          </div>
+                          <div className="relative">
+                            <RadioGroupItem value="pix_now" id="pix" className="peer sr-only" />
+                            <Label htmlFor="pix" className="flex flex-col items-center justify-center p-3 rounded-xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
+                              <QrCode className="h-5 w-5 mb-1 text-gold" />
+                              <span className="text-[8px] font-black uppercase">PIX</span>
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
                       <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5 text-left mt-6">
                         <Info className="h-5 w-5 text-gold shrink-0" />
                         <p className="text-[10px] text-white/60 font-medium uppercase tracking-widest">
@@ -1751,20 +1906,58 @@ export default function App() {
 
                 {checkoutStep === 'confirmation' && (
                   <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-10">
-                    <div className="h-24 w-24 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+                    <div className="h-24 w-24 rounded-full bg-green-500/20 flex items-center justify-center mb-4 relative">
                       <CheckCircle2 className="h-12 w-12 text-green-500" />
+                      <motion.div 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="absolute inset-0 rounded-full border-4 border-green-500/20"
+                      />
                     </div>
                     <div className="space-y-4">
-                      <h4 className="text-2xl font-black uppercase italic text-white">Pedido Confirmado!</h4>
+                      <h4 className="text-2xl font-black uppercase italic text-white">
+                        {currentOrderStatus === 'received' ? 'Pedido Recebido!' : 
+                         currentOrderStatus === 'cooking' ? '🍕 Sendo Preparado!' :
+                         currentOrderStatus === 'delivery' ? '🚀 Saiu para Entrega!' :
+                         currentOrderStatus === 'completed' ? '✅ Pedido Finalizado!' : 'Pedido Cancelado'}
+                      </h4>
                       <p className="text-sm text-white/80 max-w-xs mx-auto">
                         Obrigado, <span className="text-gold font-bold">{customerInfo.name}</span>! Seu pedido <span className="font-mono bg-white/10 px-2 py-1 rounded">#{lastOrderId?.slice(-6).toUpperCase() || '---'}</span> foi recebido.
                       </p>
-                      <Badge variant="outline" className="border-gold/20 text-gold text-xs animate-pulse py-1 px-3">
-                        AGUARDANDO CONFIRMAÇÃO DA PIZZARIA
+                      <Badge variant="outline" className={cn(
+                        "text-xs py-1 px-3 uppercase font-black tracking-widest",
+                        currentOrderStatus === 'received' ? "border-gold/20 text-gold animate-pulse" :
+                        currentOrderStatus === 'cooking' ? "border-blue-500/20 text-blue-500" :
+                        currentOrderStatus === 'delivery' ? "border-green-500/20 text-green-500" :
+                        "border-white/20 text-white/40"
+                      )}>
+                        {currentOrderStatus === 'received' ? 'AGUARDANDO CONFIRMAÇÃO' : 
+                         currentOrderStatus === 'cooking' ? 'NA COZINHA' :
+                         currentOrderStatus === 'delivery' ? 'A CAMINHO' :
+                         currentOrderStatus === 'completed' ? 'ENTREGUE' : 'CANCELADO'}
                       </Badge>
                     </div>
+
+                    {/* Loyalty Progress */}
+                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-3xl border border-white/10 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Programa de Fidelidade</span>
+                        <span className="text-xs font-black text-gold">{loyaltyPoints}/10 Pontos</span>
+                      </div>
+                      <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/10">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(loyaltyPoints / 10) * 100}%` }}
+                          className="h-full bg-gold shadow-[0_0_15px_rgba(212,175,55,0.5)]"
+                        />
+                      </div>
+                      <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
+                        {loyaltyPoints >= 10 ? 'PARABÉNS! VOCÊ GANHOU UMA PIZZA GRÁTIS!' : `FALTAM ${10 - loyaltyPoints} PEDIDOS PARA SUA PIZZA GRÁTIS!`}
+                      </p>
+                    </div>
                     
-                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-2xl border border-white/10 text-sm text-white/60 mt-4">
+                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-2xl border border-white/10 text-sm text-white/60">
                       Clique no botão abaixo para nos enviar os detalhes pelo WhatsApp e confirmarmos seu tempo de espera.
                     </div>
                     

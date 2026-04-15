@@ -74,7 +74,7 @@ service cloud.firestore {
              data.userId == request.auth.uid &&
              data.items is list &&
              data.total is number &&
-             data.status in ['pending', 'preparing', 'delivering', 'completed', 'cancelled'] &&
+             data.status in ['received', 'cooking', 'delivery', 'completed', 'cancelled'] &&
              data.createdAt is timestamp;
     }
 
@@ -97,6 +97,21 @@ service cloud.firestore {
 
     match /coupons/{couponId} {
       allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /config/{configId} {
+      allow read: if true; // Anyone can see if store is open
+      allow write: if isAdmin();
+    }
+
+    match /menu/{pizzaId} {
+      allow read: if true; // Anyone can see menu availability
+      allow write: if isAdmin();
+    }
+
+    match /loyalty/{phone} {
+      allow read: if true; // Anyone can see their points (scoped by phone)
       allow write: if isAdmin();
     }
   }
