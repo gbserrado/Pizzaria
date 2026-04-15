@@ -1,0 +1,2083 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Plus, 
+  Minus,
+  Clock, 
+  MapPin, 
+  Instagram, 
+  Phone,
+  Pizza as PizzaIcon,
+  Truck,
+  Star,
+  MessageCircle,
+  ChevronRight,
+  Info,
+  ShoppingCart,
+  X,
+  CreditCard,
+  QrCode,
+  Wallet,
+  ExternalLink,
+  Search,
+  User,
+  LogOut,
+  History,
+  Ticket,
+  Beer,
+  AlertCircle
+} from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { 
+  Drawer, 
+  DrawerContent, 
+  DrawerHeader, 
+  DrawerTitle, 
+  DrawerFooter,
+  DrawerDescription
+} from '@/components/ui/drawer';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Toaster, toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { PIZZAS, SIZES, EXTRA_INGREDIENTS, NEIGHBORHOODS, type Pizza, type PizzaSize, type Order, type CartItem } from './types';
+import { auth, db } from './firebase';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail
+} from 'firebase/auth';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy,
+  serverTimestamp,
+  getDocs
+} from 'firebase/firestore';
+
+
+type PaymentMethod = 'cash_delivery' | 'card_delivery' | 'pix_now';
+
+const ImageWithSkeleton = ({ src, alt, className, ...props }: any) => {
+  const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (imgRef.current?.complete) {
+      setLoaded(true);
+    }
+  }, []);
+
+  return (
+    <div className={cn("relative overflow-hidden bg-white/5", className)}>
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse bg-white/10" />
+      )}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        onLoad={() => setLoaded(true)}
+        className={cn(
+          "transition-all duration-700",
+          loaded ? "opacity-100 scale-100" : "opacity-0 scale-110",
+          className
+        )}
+        {...props}
+      />
+    </div>
+  );
+};
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  return new Error(JSON.stringify(errInfo));
+};
+
+export default function App() {
+  const [user, setUser] = useState<any>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authForm, setAuthForm] = useState({ email: '', password: '', name: '' });
+  
+  const [selectedPizza, setSelectedPizza] = useState<Pizza | null>(null);
+  const [isHalfAndHalf, setIsHalfAndHalf] = useState(false);
+  const [secondPizza, setSecondPizza] = useState<Pizza | null>(null);
+  const [isCartBouncing, setIsCartBouncing] = useState(false);
+  const [customization, setCustomization] = useState<{
+    size: PizzaSize;
+    extras: string[];
+  }>({ size: 'Média', extras: [] });
+  const [isMobile, setIsMobile] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Cart State
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState<'cart' | 'details' | 'payment' | 'confirmation'>('cart');
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState('Destaques');
+  
+  // Orders State
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+  const [isAdminView, setIsAdminView] = useState(false);
+
+  // Coupon State
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+
+  // Checkout State
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    phone: '',
+    street: '',
+    number: '',
+    neighborhood: '',
+    complement: '',
+    observations: '',
+    needChange: false,
+    changeFor: ''
+  });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix_now');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user) {
+        setIsAuthModalOpen(false);
+        // Load orders
+        const q = query(
+          collection(db, 'orders'), 
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc')
+        );
+        const unsubOrders = onSnapshot(q, (snapshot) => {
+          const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+          setOrders(ordersData);
+        });
+        return () => unsubOrders();
+      } else {
+        setOrders([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const cartTotal = useMemo(() => {
+    const subtotal = cart.reduce((total, item) => total + item.totalPrice, 0);
+    if (appliedCoupon) {
+      return subtotal * (1 - appliedCoupon.discount / 100);
+    }
+    return subtotal;
+  }, [cart, appliedCoupon]);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    try {
+      const q = query(collection(db, 'coupons'), where('code', '==', couponCode.toUpperCase()), where('active', '==', true));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const coupon = querySnapshot.docs[0].data();
+        setAppliedCoupon({ code: coupon.code, discount: coupon.discountPercent });
+        toast.success(`Cupom ${coupon.code} aplicado! ${coupon.discountPercent}% de desconto.`);
+      } else {
+        toast.error('Cupom inválido ou expirado.');
+      }
+    } catch (error) {
+      toast.error('Erro ao aplicar cupom.');
+    }
+  };
+
+  const addToCart = () => {
+    if (!selectedPizza) return;
+
+    if (isHalfAndHalf && !secondPizza) {
+      toast.error('Por favor, selecione o segundo sabor para a pizza meia a meia.');
+      return;
+    }
+
+    let itemPrice = selectedPizza?.basePrice || 0;
+    
+    if (selectedPizza?.category !== 'Bebidas') {
+      const sizeMultiplier = SIZES.find(s => s.label === customization.size)?.multiplier || 1;
+      
+      // Half and half logic: price of the more expensive one
+      const basePrice = isHalfAndHalf && secondPizza 
+        ? Math.max(selectedPizza?.basePrice || 0, secondPizza?.basePrice || 0)
+        : selectedPizza?.basePrice || 0;
+
+      const extrasPrice = customization.extras.reduce((total, extraName) => {
+        const extra = EXTRA_INGREDIENTS.find(e => e.name === extraName);
+        return total + (extra?.price || 0);
+      }, 0);
+      
+      itemPrice = (basePrice * sizeMultiplier) + extrasPrice;
+    }
+
+    const newItem: CartItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      pizza: selectedPizza,
+      pizza2: isHalfAndHalf ? (secondPizza || undefined) : undefined,
+      size: selectedPizza.category !== 'Bebidas' ? customization.size : undefined,
+      extras: [...customization.extras],
+      quantity: 1,
+      totalPrice: itemPrice
+    };
+
+    setCart(prev => [...prev, newItem]);
+    
+    // Redirect to drinks if a pizza was added
+    if (selectedPizza.category !== 'Bebidas') {
+      setActiveCategory('Bebidas');
+      // Scroll to menu section to show drinks
+      const menuSection = document.getElementById('menu');
+      if (menuSection) {
+        menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    setSelectedPizza(null);
+    setIsHalfAndHalf(false);
+    setSecondPizza(null);
+    setCustomization({ size: 'Média', extras: [] });
+    
+    // Trigger cart bounce
+    setIsCartBouncing(true);
+    setTimeout(() => setIsCartBouncing(false), 500);
+    
+    toast.success(
+      <div className="flex flex-col">
+        <span className="font-bold">
+          {isHalfAndHalf && secondPizza ? `Meia ${selectedPizza.name} / Meia ${secondPizza.name}` : selectedPizza.name}
+        </span>
+        <span className="text-xs opacity-70">Adicionado ao carrinho - R$ {itemPrice.toFixed(2)}</span>
+      </div>,
+      { icon: '🍕' }
+    );
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const updateQuantity = (id: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        const newQuantity = Math.max(1, item.quantity + delta);
+        const unitPrice = item.totalPrice / item.quantity;
+        return {
+          ...item,
+          quantity: newQuantity,
+          totalPrice: unitPrice * newQuantity
+        };
+      }
+      return item;
+    }));
+  };
+
+  const handleFinalizeOrder = async () => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      const orderData = {
+        userId: user.uid,
+        items: cart.map(item => ({
+          name: item.pizza.name,
+          name2: item.pizza2?.name || null,
+          size: item.size || null,
+          extras: item.extras,
+          quantity: item.quantity,
+          price: item.totalPrice
+        })),
+        total: cartTotal,
+        status: 'pending',
+        address: {
+          ...customerInfo,
+          complement: customerInfo.complement || null,
+          observations: customerInfo.observations || null,
+          changeFor: customerInfo.changeFor || null
+        },
+        paymentMethod,
+        createdAt: serverTimestamp(),
+        couponCode: appliedCoupon?.code || null,
+        discount: appliedCoupon?.discount || 0
+      };
+
+      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      setLastOrderId(docRef.id);
+
+      if (paymentMethod === 'pix_now') {
+        setCheckoutStep('confirmation');
+      } else {
+        const pizzariaLink = generateWhatsAppLink(docRef.id, 'pizzaria');
+        const cozinhaLink = generateWhatsAppLink(docRef.id, 'cozinha');
+        
+        window.open(pizzariaLink, '_blank');
+        
+        setTimeout(() => {
+          window.open(cozinhaLink, '_blank');
+        }, 500);
+
+        setIsCartOpen(false);
+        setCart([]);
+        setCheckoutStep('cart');
+        setAppliedCoupon(null);
+        toast.success('Pedido enviado para a Pizzaria e Cozinha!');
+      }
+    } catch (error) {
+      const firestoreError = handleFirestoreError(error, OperationType.CREATE, 'orders');
+      console.error('Erro ao finalizar pedido:', firestoreError);
+      toast.error('Erro ao processar pedido. Verifique os dados e tente novamente.');
+    }
+  };
+
+  // Admin Sound Notification
+  useEffect(() => {
+    if (isAdminView) {
+      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added" && !snapshot.metadata.fromCache) {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(e => console.log('Audio play blocked'));
+            toast.info('Novo pedido recebido!', { icon: '🍕' });
+          }
+        });
+      });
+      return () => unsubscribe();
+    }
+  }, [isAdminView]);
+
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, { status: newStatus });
+      toast.success(`Status atualizado para ${newStatus}`);
+    } catch (error) {
+      toast.error('Erro ao atualizar status');
+    }
+  };
+  const handleReorder = (order: Order) => {
+    const newItems = order.items.map((item: any) => {
+      const pizza = PIZZAS.find(p => p.name === item.name);
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        pizza: pizza || { name: item.name, basePrice: item.price / item.quantity, category: 'Tradicional' } as Pizza,
+        size: item.size,
+        extras: item.extras || [],
+        quantity: item.quantity,
+        totalPrice: item.price
+      } as CartItem;
+    });
+    setCart(prev => [...prev, ...newItems]);
+    setIsOrdersOpen(false);
+    setIsCartOpen(true);
+    toast.success('Itens adicionados ao carrinho!');
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (authMode === 'login') {
+        await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
+        toast.success('Bem-vindo de volta!');
+      } else if (authMode === 'register') {
+        await createUserWithEmailAndPassword(auth, authForm.email, authForm.password);
+        toast.success('Conta criada com sucesso!');
+      } else {
+        await sendPasswordResetEmail(auth, authForm.email);
+        toast.success('E-mail de recuperação enviado!');
+        setAuthMode('login');
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      toast.success('Login realizado com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+  const generatePixPayload = (amount: number) => {
+    const key = "22998487785";
+    const merchantName = "OURO PRETO";
+    const merchantCity = "NOVA FRIBURGO";
+    const amountStr = amount.toFixed(2);
+    const amountPart = `54${amountStr.length.toString().padStart(2, '0')}${amountStr}`;
+    
+    // Basic Pix structure (Static)
+    // 000201 (Payload Format)
+    // 26 (Merchant Account Info) -> 0014BR.GOV.BCB.PIX + 01 (Key Length + Key)
+    // 52040000 (Merchant Category Code)
+    // 5303986 (Currency BRL)
+    // 54 (Amount)
+    // 5802BR (Country)
+    // 59 (Merchant Name)
+    // 60 (Merchant City)
+    // 62070503*** (Additional Data)
+    // 6304 (CRC16 - simplified placeholder for this demo)
+    
+    const payload = `00020126330014BR.GOV.BCB.PIX0111${key}520400005303986${amountPart}5802BR59${merchantName.length.toString().padStart(2, '0')}${merchantName}60${merchantCity.length.toString().padStart(2, '0')}${merchantCity}62070503***6304`;
+    
+    // Note: A real CRC16 should be calculated here. 
+    // For the sake of this UI demo, we'll use a fixed CRC or a placeholder.
+    return payload + "1234"; 
+  };
+
+  const PIZZARIA_PHONE = "5522998487785";
+  const COZINHA_PHONE = "5522998017088";
+
+  const generateWhatsAppLink = (orderId?: string, target: 'pizzaria' | 'cozinha' = 'pizzaria') => {
+    const paymentLabels: Record<PaymentMethod, string> = {
+      cash_delivery: 'Dinheiro (na entrega)',
+      card_delivery: 'Cartão (na entrega)',
+      pix_now: 'Pix (pelo site)'
+    };
+
+    const id = orderId || lastOrderId || '---';
+    const shortId = id.slice(-6).toUpperCase();
+
+    if (target === 'cozinha') {
+      let kitchenMsg = `*👨‍🍳 NOVO PEDIDO PARA COZINHA - #${shortId}*\n\n`;
+      cart.forEach((item, index) => {
+        kitchenMsg += `${index + 1}. ${item.quantity}x *${item.pizza.name}* ${item.size ? `(${item.size})` : ''}\n`;
+        if (item.extras.length > 0) {
+          kitchenMsg += `   + Adicionais: ${item.extras.join(', ')}\n`;
+        }
+      });
+      return `https://wa.me/${COZINHA_PHONE}?text=${encodeURIComponent(kitchenMsg)}`;
+    }
+
+    let message = `*🍕 NOVO PEDIDO - PIZZARIA OURO PRETO*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `*🆔 Pedido:* #${shortId}\n` +
+      `*👤 Cliente:* ${customerInfo.name}\n` +
+      `*📱 WhatsApp:* ${customerInfo.phone}\n\n` +
+      `*📍 ENDEREÇO DE ENTREGA*\n` +
+      `*Rua:* ${customerInfo.street}, ${customerInfo.number}\n` +
+      `*Bairro:* ${customerInfo.neighborhood}\n` +
+      (customerInfo.complement ? `*Ref:* ${customerInfo.complement}\n` : '') +
+      `*🗺️ Ver no Mapa:* https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${customerInfo.street}, ${customerInfo.number}, ${customerInfo.neighborhood}, Nova Friburgo, RJ`)}\n\n` +
+      (customerInfo.observations ? `*📝 Observações:* ${customerInfo.observations}\n\n` : '') +
+      `*🛒 ITENS DO PEDIDO*\n`;
+
+    cart.forEach((item, index) => {
+      const pizzaName = item.pizza2 
+        ? `🌓 Meia ${item.pizza.name} / Meia ${item.pizza2.name}`
+        : `🍕 ${item.pizza.name}`;
+        
+      message += `${index + 1}. ${item.quantity}x *${pizzaName}* ${item.size ? `(${item.size})` : ''}\n`;
+      if (item.extras.length > 0) {
+        message += `   └ ✨ Adicionais: ${item.extras.join(', ')}\n`;
+      }
+      message += `   └ 💰 Subtotal: R$ ${item.totalPrice.toFixed(2)}\n\n`;
+    });
+
+    if (appliedCoupon) {
+      message += `*🎟️ Cupom:* ${appliedCoupon.code} (-${appliedCoupon.discount}%)\n`;
+    }
+
+    message += `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `*💰 TOTAL: R$ ${cartTotal.toFixed(2)}*\n` +
+      `*💳 Pagamento:* ${paymentLabels[paymentMethod]}\n`;
+
+    if (paymentMethod === 'cash_delivery' && customerInfo.needChange) {
+      const changeValue = parseFloat(customerInfo.changeFor) - cartTotal;
+      message += `*💵 Troco para:* R$ ${parseFloat(customerInfo.changeFor).toFixed(2)}\n` +
+                 `*👉 Levar de troco:* R$ ${changeValue.toFixed(2)}\n`;
+    }
+
+    message += `\n` +
+      `*🛵 Tempo de entrega:* _Pode me confirmar o tempo de entrega e o valor da taxa?_\n\n` +
+      (paymentMethod === 'pix_now' ? `*⚠️ ESTOU ENVIANDO O COMPROVANTE DO PIX EM ANEXO.*\n\n` : '') +
+      `_Aguardando confirmação..._`;
+    
+    return `https://wa.me/${PIZZARIA_PHONE}?text=${encodeURIComponent(message)}`;
+  };
+
+  const AdminDashboard = () => (
+    <div className="container py-20 space-y-12">
+      <div className="flex justify-between items-center">
+        <h2 className="text-4xl font-black uppercase italic tracking-tighter text-gold">Painel Administrativo</h2>
+        <Button onClick={() => setIsAdminView(false)} variant="outline" className="border-white/10 text-white">Voltar para Loja</Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        {orders.map((order) => (
+          <Card key={order.id} className="bg-white/5 border-white/10 p-6">
+            <div className="flex flex-col md:flex-row justify-between gap-6">
+              <div className="space-y-4 flex-1">
+                <div className="flex items-center gap-3">
+                  <Badge className="bg-gold text-deep-black font-black uppercase tracking-widest text-[10px]">#{order.id?.slice(-6).toUpperCase()}</Badge>
+                  <span className="text-white/40 text-xs font-bold">{order.createdAt?.toDate().toLocaleString('pt-BR')}</span>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-lg font-black uppercase italic text-white">{order.address.name}</p>
+                  <p className="text-sm text-white/60">{order.address.street}, {order.address.number} - {order.address.neighborhood}</p>
+                  <p className="text-xs text-gold font-bold">{order.address.phone}</p>
+                </div>
+
+                <div className="pt-4 border-t border-white/5 space-y-2">
+                  {order.items.map((item, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-white/80">{item.quantity}x {item.name} {item.size && `(${item.size})`}</span>
+                      <span className="text-white font-bold">R$ {item.price.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="pt-2 flex justify-between items-center">
+                    <span className="text-xs font-black uppercase tracking-widest text-white/40">Total</span>
+                    <span className="text-xl font-black text-gold">R$ {order.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 md:w-48">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">Alterar Status</Label>
+                {['pending', 'preparing', 'delivering', 'completed', 'cancelled'].map((status) => (
+                  <Button
+                    key={status}
+                    size="sm"
+                    variant={order.status === status ? 'default' : 'outline'}
+                    onClick={() => updateOrderStatus(order.id!, status)}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-widest h-9",
+                      order.status === status ? "bg-gold text-deep-black" : "border-white/10 text-white/60 hover:text-white"
+                    )}
+                  >
+                    {status === 'pending' ? 'Pendente' : 
+                     status === 'preparing' ? 'Preparando' :
+                     status === 'delivering' ? 'Em Entrega' :
+                     status === 'completed' ? 'Concluído' : 'Cancelado'}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+  const CustomizationContent = () => {
+    const [secondPizzaCategory, setSecondPizzaCategory] = useState<string>('Tradicional');
+    const availableSecondPizzas = PIZZAS.filter(p => p.category !== 'Bebidas' && p.available);
+
+    return (
+      <div className="space-y-8 py-6 md:py-4">
+        {/* Half and Half Toggle */}
+        {selectedPizza?.category !== 'Bebidas' && (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label className="text-sm font-black uppercase tracking-widest text-white">Fazer Meia a Meia?</Label>
+                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Escolha dois sabores em uma única pizza</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsHalfAndHalf(!isHalfAndHalf);
+                  if (!isHalfAndHalf) setSecondPizza(null);
+                }}
+                className={`h-6 w-12 rounded-full transition-all relative ${isHalfAndHalf ? 'bg-gold' : 'bg-white/10'}`}
+              >
+                <motion.div 
+                  animate={{ x: isHalfAndHalf ? 24 : 4 }}
+                  className={`h-4 w-4 rounded-full absolute top-1 ${isHalfAndHalf ? 'bg-deep-black' : 'bg-white/40'}`}
+                />
+              </button>
+            </div>
+
+            {isHalfAndHalf && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-4 pt-4 border-t border-white/5"
+              >
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  {['Tradicional', 'Especial', 'Premium', 'Doce'].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSecondPizzaCategory(cat)}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                        secondPizzaCategory === cat ? 'bg-gold text-deep-black' : 'bg-white/5 text-white/40 hover:text-white'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 max-h-[240px] overflow-y-auto pr-2 scrollbar-hide">
+                  {availableSecondPizzas.filter(p => p.category === secondPizzaCategory).map((pizza) => (
+                    <button
+                      key={pizza.id}
+                      onClick={() => setSecondPizza(pizza)}
+                      className={`flex items-center gap-3 p-2 rounded-xl border transition-all ${
+                        secondPizza?.id === pizza.id 
+                          ? 'bg-gold/20 border-gold text-gold' 
+                          : 'bg-white/5 border-white/5 text-white/60 hover:border-white/20'
+                      }`}
+                    >
+                      <ImageWithSkeleton src={pizza.image} className="h-10 w-10 rounded-lg object-cover" alt={pizza.name} />
+                      <div className="flex-1 text-left">
+                        <p className="text-xs font-black uppercase italic">{pizza.name}</p>
+                        <p className="text-[10px] opacity-60">R$ {pizza.basePrice.toFixed(2)}</p>
+                      </div>
+                      {secondPizza?.id === pizza.id && <Star className="h-3 w-3 fill-gold" />}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+        )}
+
+        {/* Size Selection */}
+        {selectedPizza?.category !== 'Bebidas' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Tamanho</Label>
+              <Badge variant="outline" className="text-[10px] border-gold/20 text-gold/60">Obrigatório</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {SIZES.map((size) => {
+                const basePrice = isHalfAndHalf && secondPizza 
+                  ? Math.max(selectedPizza?.basePrice || 0, secondPizza?.basePrice || 0)
+                  : (selectedPizza?.basePrice || 0);
+
+                return (
+                  <button
+                    key={size.label}
+                    onClick={() => setCustomization(prev => ({ ...prev, size: size.label }))}
+                    className={`p-4 rounded-xl border text-sm font-bold transition-all flex flex-col items-start gap-1 relative overflow-hidden group ${
+                      customization.size === size.label 
+                        ? 'bg-gold border-gold text-deep-black' 
+                        : 'bg-white/5 border-white/10 hover:border-white/30 text-white/70 hover:text-white'
+                    }`}
+                  >
+                    <span className="uppercase tracking-tighter z-10">{size.label}</span>
+                    <span className={`text-xs z-10 ${customization.size === size.label ? 'text-deep-black/80' : 'text-white/40'}`}>
+                      R$ {(basePrice * size.multiplier).toFixed(2)}
+                    </span>
+                    {customization.size === size.label && (
+                      <motion.div 
+                        layoutId="activeSize"
+                        className="absolute inset-0 bg-gold z-0"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      {/* Extras */}
+      {selectedPizza?.category !== 'Bebidas' && (
+        <div className="space-y-4">
+          <Label className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Adicionais (Opcional)</Label>
+          <div className="grid grid-cols-2 gap-3">
+            {EXTRA_INGREDIENTS.map((extra) => (
+              <button
+                key={extra.name}
+                onClick={() => {
+                  setCustomization(prev => ({
+                    ...prev,
+                    extras: prev.extras.includes(extra.name) 
+                      ? prev.extras.filter(e => e !== extra.name)
+                      : [...prev.extras, extra.name]
+                  }));
+                }}
+                className={`p-4 rounded-xl border text-sm font-bold transition-all flex flex-col items-start gap-1 relative overflow-hidden ${
+                  customization.extras.includes(extra.name) 
+                    ? 'bg-pizza-red border-pizza-red text-white' 
+                    : 'bg-white/5 border-white/10 hover:border-white/30 text-white/70 hover:text-white'
+                }`}
+              >
+                <span className="uppercase tracking-tighter z-10">{extra.name}</span>
+                <span className={`text-xs z-10 ${customization.extras.includes(extra.name) ? 'text-white/90' : 'text-white/40'}`}>
+                  + R$ {extra.price.toFixed(2)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selectedPizza?.category === 'Bebidas' && (
+        <div className="py-12 text-center space-y-4">
+          <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+            <Beer className="h-10 w-10 text-gold" />
+          </div>
+          <p className="text-white/60 font-medium">Bebida gelada pronta para acompanhar sua pizza!</p>
+        </div>
+      )}
+    </div>
+    );
+  };
+
+  const CustomizationFooter = () => (
+    <div className="p-6 border-t border-white/5 bg-graphite/95 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="space-y-1 text-center md:text-left">
+          <p className="text-xs font-bold text-white/40 uppercase tracking-widest">Subtotal</p>
+          <p className="text-4xl md:text-3xl font-black text-gold">
+            R$ {(
+              (isHalfAndHalf && secondPizza ? Math.max(selectedPizza?.basePrice || 0, secondPizza?.basePrice || 0) : (selectedPizza?.basePrice || 0)) * 
+              (selectedPizza?.category !== 'Bebidas' ? (SIZES.find(s => s.label === customization.size)?.multiplier || 1) : 1) +
+              (selectedPizza?.category !== 'Bebidas' ? customization.extras.reduce((acc, name) => acc + (EXTRA_INGREDIENTS.find(e => e.name === name)?.price || 0), 0) : 0)
+            ).toFixed(2)}
+          </p>
+        </div>
+        <Button 
+          onClick={addToCart}
+          disabled={isHalfAndHalf && !secondPizza}
+          className="w-full md:w-auto bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-16 md:h-14 px-12 md:px-8 rounded-full shadow-lg shadow-gold/20 group text-lg md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isHalfAndHalf && !secondPizza ? 'ESCOLHA O 2º SABOR' : 'ADICIONAR'} <Plus className="ml-2 h-6 w-6 md:h-5 md:w-5 group-hover:scale-110 transition-transform" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-deep-black">
+      <Toaster position="top-center" richColors />
+
+      {isAdminView ? (
+        <AdminDashboard />
+      ) : (
+        <>
+          {/* Header */}
+          <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-deep-black/80 backdrop-blur-md">
+        <div className="container flex h-16 md:h-20 items-center justify-between px-4 md:px-8">
+          <div 
+            className="flex items-center gap-2 cursor-pointer group"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setIsCartOpen(false);
+              setIsOrdersOpen(false);
+              setSelectedPizza(null);
+            }}
+          >
+            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-pizza-red text-white group-hover:scale-110 transition-transform">
+              <PizzaIcon className="h-5 w-5 md:h-6 md:w-6" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-extrabold tracking-tighter text-gold">
+              OURO <span className="text-white">PRETO</span>
+            </h1>
+          </div>
+
+          <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest text-white/70">
+            <a href="#menu" className="hover:text-gold transition-colors">Cardápio</a>
+            <a href="#contact" className="hover:text-gold transition-colors">Contato</a>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {user && (
+              <>
+                <Button 
+                  variant="outline" 
+                  className="hidden md:flex border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 px-4 gap-2 text-xs font-bold uppercase tracking-widest"
+                  onClick={() => setIsOrdersOpen(true)}
+                >
+                  <History className="h-4 w-4 text-gold" />
+                  Meus Pedidos
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="md:hidden border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0"
+                  onClick={() => setIsOrdersOpen(true)}
+                >
+                  <History className="h-5 w-5 text-gold" />
+                </Button>
+              </>
+            )}
+            <motion.div
+              animate={isCartBouncing ? { scale: [1, 1.3, 1], rotate: [0, -10, 10, 0] } : {}}
+              transition={{ duration: 0.4 }}
+            >
+              <Button 
+                variant="outline" 
+                className={cn(
+                  "relative border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0 transition-all",
+                  isCartBouncing && "border-gold shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+                )}
+                onClick={() => setIsCartOpen(true)}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {cart.length > 0 && (
+                  <Badge className="absolute -top-2 -right-2 bg-pizza-red text-white border-none h-5 w-5 flex items-center justify-center p-0 text-[10px] font-bold">
+                    {cart.length}
+                  </Badge>
+                )}
+              </Button>
+            </motion.div>
+            <a 
+              href="https://wa.me/5522998487785" 
+              target="_blank" 
+              rel="noreferrer"
+              className={cn(
+                buttonVariants({ variant: "default" }),
+                "bg-green-600 hover:bg-green-700 text-white font-bold rounded-full h-10 px-4 md:px-6 text-xs md:text-sm gap-2"
+              )}
+            >
+              <MessageCircle className="h-4 w-4" /> <span className="hidden xs:inline">WhatsApp</span>
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        {/* Hero Section */}
+        <section className="relative h-[60vh] md:h-[70vh] flex items-center overflow-hidden">
+          <div className="absolute inset-0 z-0">
+            <img 
+              src="https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=1920&auto=format&fit=crop" 
+              alt="Pizza Hero" 
+              className="h-full w-full object-cover opacity-30 md:opacity-40"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-deep-black via-deep-black/60 to-transparent" />
+          </div>
+
+          <div className="container relative z-10 text-center max-w-4xl mx-auto px-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="space-y-4 md:space-y-6"
+            >
+              <Badge className="bg-pizza-red text-white border-none px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-sm font-bold uppercase tracking-widest">
+                Conselheiro Paulino • Nova Friburgo
+              </Badge>
+              <h2 className="text-4xl md:text-7xl font-black tracking-tight leading-none uppercase italic">
+                A MELHOR PIZZA <br className="hidden md:block" /> DIRETO NO SEU <span className="text-gold">SOFÁ</span>.
+              </h2>
+              <p className="text-sm md:text-xl text-white/70 font-medium max-w-2xl mx-auto">
+                Massa artesanal, ingredientes selecionados e o sabor que você já conhece. Peça agora pelo WhatsApp.
+              </p>
+              <div className="pt-4 md:pt-6">
+                <a 
+                  href="#menu"
+                  className={cn(
+                    buttonVariants({ variant: "default", size: "lg" }),
+                    "bg-gold text-deep-black hover:bg-gold-dark font-black px-8 md:px-12 h-14 md:h-16 text-lg md:text-xl rounded-full shadow-2xl shadow-gold/20"
+                  )}
+                >
+                  VER CARDÁPIO
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Features - Compact on Mobile */}
+        <section className="py-12 md:py-16 bg-graphite/30 border-y border-white/5">
+          <div className="container px-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+              {[
+                { icon: Truck, title: 'Entrega Rápida', desc: 'Chega quentinha em sua casa.' },
+                { icon: Star, title: 'Preço Justo', desc: 'Qualidade que cabe no bolso.' },
+                { icon: PizzaIcon, title: 'Tradição', desc: 'A favorita dos Friburguenses.' }
+              ].map((feature, i) => (
+                <div key={i} className="flex items-center md:items-start gap-4 p-4 md:p-6 rounded-2xl bg-white/5 border border-white/5">
+                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-gold/10 flex items-center justify-center shrink-0">
+                    <feature.icon className="h-5 w-5 md:h-6 md:w-6 text-gold" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm md:text-lg font-bold text-gold uppercase tracking-tighter">{feature.title}</h3>
+                    <p className="text-white/40 text-xs md:text-sm">{feature.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Menu Section */}
+        <section id="menu" className="py-16 md:py-24 bg-zinc-900/40 border-y border-white/5">
+          <div className="container px-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 md:mb-16">
+              <div className="space-y-2">
+                <h2 className="text-3xl md:text-6xl font-black tracking-tight uppercase italic">Nosso <span className="text-gold">Cardápio</span></h2>
+                <p className="text-white/50 text-sm md:text-base">Toque no sabor desejado para personalizar seu pedido.</p>
+              </div>
+              
+              <div className="relative w-full md:w-72">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                <Input 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Buscar sabor..."
+                  className="bg-white/5 border-white/10 h-12 pl-12 rounded-full focus:border-gold/50 text-sm"
+                />
+              </div>
+            </div>
+
+            <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full flex flex-col">
+              <div className="sticky top-16 md:top-20 z-40 bg-deep-black/95 backdrop-blur-md py-4 mb-12 border-b border-white/5">
+                <TabsList className="w-full bg-white/5 border border-white/10 p-1 h-auto flex-nowrap overflow-x-auto justify-start md:justify-center scrollbar-hide snap-x snap-mandatory">
+                  {[
+                    { id: 'Destaques', label: 'Destaques', icon: Star },
+                    { id: 'Tradicional', label: 'Tradicional', icon: PizzaIcon },
+                    { id: 'Especial', label: 'Especial', icon: Star },
+                    { id: 'Premium', label: 'Premium', icon: Ticket },
+                    { id: 'Doce', label: 'Doces', icon: Star },
+                    { id: 'Bebidas', label: 'Bebidas', icon: Beer }
+                  ].map((cat) => (
+                    <TabsTrigger 
+                      key={cat.id} 
+                      value={cat.id}
+                      className="px-6 md:px-8 py-2.5 md:py-3 rounded-md data-[state=active]:bg-gold data-[state=active]:text-deep-black font-black uppercase tracking-tighter transition-all text-xs md:text-sm whitespace-nowrap snap-start text-white/50 hover:text-white flex items-center gap-2"
+                    >
+                      <cat.icon className="h-3 w-3 md:h-4 md:w-4" />
+                      {cat.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+
+              {['Destaques', 'Tradicional', 'Especial', 'Premium', 'Doce', 'Bebidas'].map((category) => (
+                <TabsContent key={category} value={category} className="mt-0 focus-visible:outline-none">
+                  <div className="mb-8 space-y-1">
+                    <h3 className="text-xl md:text-2xl font-black uppercase italic text-gold tracking-tight">
+                      {category === 'Destaques' ? '🔥 Mais Pedidas' : 
+                       category === 'Tradicional' ? '🍕 Sabores Tradicionais' :
+                       category === 'Especial' ? '✨ Sabores Especiais' :
+                       category === 'Premium' ? '🏆 Linha Premium' :
+                       category === 'Doce' ? '🍫 Pizzas Doces' : '🥤 Bebidas Geladas'}
+                    </h3>
+                    <p className="text-white/40 text-xs md:text-sm font-medium">
+                      {category === 'Destaques' ? 'Os sabores favoritos da nossa galera.' : 
+                       category === 'Tradicional' ? 'As clássicas que nunca saem de moda.' :
+                       category === 'Especial' ? 'Combinações únicas para paladares exigentes.' :
+                       category === 'Premium' ? 'Ingredientes selecionados e sabores sofisticados.' :
+                       category === 'Doce' ? 'A sobremesa perfeita em forma de pizza.' : 'Para acompanhar sua pizza favorita.'}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                    {(() => {
+                      const filteredPizzas = PIZZAS
+                        .filter(p => category === 'Destaques' ? p.popular : p.category === category)
+                        .filter(p => 
+                          p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.description.toLowerCase().includes(searchQuery.toLowerCase())
+                        );
+
+                      if (filteredPizzas.length === 0) {
+                        return (
+                          <div className="col-span-full py-20 text-center space-y-4">
+                            <div className="h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                              <Search className="h-8 w-8 text-white/10" />
+                            </div>
+                            <p className="text-white/40 font-bold uppercase tracking-widest text-sm">Nenhum sabor encontrado</p>
+                            <Button 
+                              variant="link" 
+                              className="text-gold font-black uppercase tracking-widest text-[10px]"
+                              onClick={() => setSearchQuery('')}
+                            >
+                              Limpar Busca
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      return filteredPizzas.map((pizza, idx) => (
+                        <motion.div
+                          key={pizza.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          viewport={{ once: true }}
+                        >
+                          <Card 
+                            className={`
+                              bg-white/[0.05] border-white/10 overflow-hidden hover:border-gold/30 transition-all duration-500 group cursor-pointer relative
+                              ${isMobile ? 'flex h-32' : 'flex flex-col h-full'}
+                              ${!pizza.available ? 'opacity-50 grayscale cursor-not-allowed' : ''}
+                            `}
+                            onClick={() => pizza.available && setSelectedPizza(pizza)}
+                          >
+                            {/* Image Container */}
+                            <div className={`
+                              relative overflow-hidden
+                              ${isMobile ? 'w-32 shrink-0' : 'h-64'}
+                            `}>
+                              <ImageWithSkeleton 
+                                src={pizza.image} 
+                                alt={pizza.name} 
+                                className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
+                              {pizza.popular && pizza.available && (
+                                <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+                                  <Badge className="bg-gold text-deep-black border-none text-[8px] font-black uppercase tracking-tighter px-1.5 py-0">
+                                    Popular
+                                  </Badge>
+                                  {activeCategory === 'Destaques' && (
+                                    <Badge className="bg-white/20 text-white backdrop-blur-md border-none text-[7px] font-black uppercase tracking-tighter px-1.5 py-0">
+                                      {pizza.category}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                              {!pizza.available && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
+                                  <Badge className="bg-pizza-red text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1">
+                                    Esgotada
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Content */}
+                            <div className={`flex flex-col flex-1 ${isMobile ? 'p-4 justify-between' : 'p-6'}`}>
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-start gap-2">
+                                  <CardTitle className={`
+                                    font-black group-hover:text-gold transition-colors uppercase italic tracking-tight
+                                    ${isMobile ? 'text-lg leading-tight' : 'text-xl'}
+                                  `}>
+                                    {pizza.name}
+                                  </CardTitle>
+                                  {!isMobile && (
+                                    <span className="text-gold font-black text-base whitespace-nowrap">
+                                      R$ {pizza.basePrice.toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <CardDescription className={`
+                                  text-white/60 leading-relaxed font-medium
+                                  ${isMobile ? 'text-[10px] line-clamp-2' : 'text-xs mt-2'}
+                                `}>
+                                  {pizza.description}
+                                </CardDescription>
+                              </div>
+
+                              <div className="flex items-center justify-between mt-auto">
+                                {isMobile ? (
+                                  <span className="text-gold font-black text-base">
+                                    R$ {pizza.basePrice.toFixed(2)}
+                                  </span>
+                                ) : (
+                                  <div className="pt-4 flex items-center text-[10px] font-black uppercase tracking-[0.2em] text-white/20 group-hover:text-gold transition-colors">
+                                    Personalizar <ChevronRight className="ml-1 h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {isMobile && (
+                              <div className="absolute right-3 bottom-3">
+                                <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center border border-gold/20 group-hover:bg-gold group-hover:text-deep-black transition-all">
+                                  <Plus className="h-5 w-5" />
+                                </div>
+                              </div>
+                            )}
+                          </Card>
+                        </motion.div>
+                      ));
+                    })()}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
+        </section>
+      </main>
+
+      {/* Customization - Drawer for Mobile, Dialog for Desktop */}
+      {isMobile ? (
+        <Drawer open={!!selectedPizza} onOpenChange={(open) => !open && setSelectedPizza(null)}>
+          <DrawerContent className="bg-graphite border-white/10 text-white">
+            <DrawerHeader className="text-left border-b border-white/5 pb-4">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-lg overflow-hidden shrink-0 border border-white/10">
+                  <img 
+                    src={selectedPizza?.image} 
+                    alt="" 
+                    className="w-full h-full object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div>
+                  <DrawerTitle className="text-2xl font-black text-gold uppercase italic leading-none">{selectedPizza?.name}</DrawerTitle>
+                  <DrawerDescription className="text-white/40 text-xs mt-1">Personalize sua pizza</DrawerDescription>
+                </div>
+              </div>
+            </DrawerHeader>
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              <CustomizationContent />
+            </div>
+            <DrawerFooter className="p-0">
+              <CustomizationFooter />
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Dialog open={!!selectedPizza} onOpenChange={(open) => !open && setSelectedPizza(null)}>
+          <DialogContent className="bg-graphite border-white/10 text-white sm:max-w-[500px] p-0 overflow-hidden max-h-[95vh] flex flex-col">
+            <div className="relative h-48 shrink-0">
+              <ImageWithSkeleton 
+                src={selectedPizza?.image} 
+                alt={selectedPizza?.name} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-graphite to-transparent" />
+              <div className="absolute bottom-4 left-6">
+                <DialogTitle className="text-3xl font-black text-gold uppercase italic">{selectedPizza?.name}</DialogTitle>
+              </div>
+            </div>
+            <div className="p-8 pt-0 overflow-y-auto flex-1 scrollbar-hide">
+              <CustomizationContent />
+            </div>
+            <div className="shrink-0">
+              <CustomizationFooter />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Floating Cart Button for Mobile */}
+      {isMobile && cart.length > 0 && !isCartOpen && (
+        <motion.div 
+          initial={{ scale: 0, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          className="fixed bottom-6 right-6 z-[60]"
+        >
+          <Button 
+            onClick={() => setIsCartOpen(true)}
+            className="h-16 w-16 rounded-full bg-gold text-deep-black shadow-2xl shadow-gold/40 flex items-center justify-center p-0 relative"
+          >
+            <ShoppingCart className="h-7 w-7" />
+            <Badge className="absolute -top-1 -right-1 bg-pizza-red text-white border-none h-6 w-6 flex items-center justify-center p-0 text-xs font-bold">
+              {cart.length}
+            </Badge>
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Auth Modal */}
+      <Dialog open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen}>
+        <DialogContent className="bg-graphite border-white/10 text-white sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-3xl font-black text-gold uppercase italic text-center">
+              {authMode === 'login' ? 'Bem-vindo' : authMode === 'register' ? 'Criar Conta' : 'Recuperar Senha'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleAuth} className="space-y-4 mt-4">
+            {authMode === 'register' && (
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input 
+                  required
+                  value={authForm.name}
+                  onChange={e => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>E-mail</Label>
+              <Input 
+                type="email"
+                required
+                value={authForm.email}
+                onChange={e => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
+                className="bg-white/5 border-white/10"
+              />
+            </div>
+            {authMode !== 'forgot' && (
+              <div className="space-y-2">
+                <Label>Senha</Label>
+                <Input 
+                  type="password"
+                  required
+                  value={authForm.password}
+                  onChange={e => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+            )}
+            
+            <Button type="submit" className="w-full bg-gold text-deep-black font-black uppercase tracking-widest h-12">
+              {authMode === 'login' ? 'ENTRAR' : authMode === 'register' ? 'CADASTRAR' : 'ENVIAR E-MAIL'}
+            </Button>
+
+            {authMode === 'login' && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleGoogleLogin}
+                className="w-full border-white/10 hover:bg-white/5 text-white h-12 flex items-center gap-2"
+              >
+                <img src="https://www.google.com/favicon.ico" className="h-4 w-4" alt="Google" />
+                ENTRAR COM GOOGLE
+              </Button>
+            )}
+          </form>
+
+          <div className="flex flex-col gap-2 mt-4 text-center">
+            {authMode === 'login' ? (
+              <>
+                <button onClick={() => setAuthMode('register')} className="text-xs text-white/40 hover:text-gold transition-colors">Não tem conta? Cadastre-se</button>
+                <button onClick={() => setAuthMode('forgot')} className="text-xs text-white/40 hover:text-gold transition-colors">Esqueceu a senha?</button>
+              </>
+            ) : (
+              <button onClick={() => setAuthMode('login')} className="text-xs text-white/40 hover:text-gold transition-colors">Voltar para o Login</button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* My Orders Modal */}
+      <Dialog open={isOrdersOpen} onOpenChange={setIsOrdersOpen}>
+        <DialogContent className="bg-graphite border-white/10 text-white sm:max-w-[500px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-gold uppercase italic">Meus Pedidos</DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            {orders.length === 0 ? (
+              <div className="py-12 text-center text-white/40">
+                <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                <p>Você ainda não fez nenhum pedido.</p>
+              </div>
+            ) : (
+              orders.map((order) => (
+                <Card key={order.id} className="bg-white/5 border-white/10 p-4">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Pedido #{order.id?.slice(-6).toUpperCase()}</p>
+                      <p className="text-xs text-white/60">{order.createdAt?.toDate().toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <Badge className={cn(
+                      "uppercase text-[10px] font-black",
+                      order.status === 'completed' ? "bg-green-500" : "bg-gold text-deep-black"
+                    )}>
+                      {order.status === 'pending' ? 'Pendente' : 
+                       order.status === 'preparing' ? 'Preparando' :
+                       order.status === 'delivering' ? 'Em Entrega' :
+                       order.status === 'completed' ? 'Concluído' : 'Cancelado'}
+                    </Badge>
+                  </div>
+
+                  {/* Tracking Progress */}
+                  {order.status !== 'completed' && order.status !== 'cancelled' && (
+                    <div className="mb-6 space-y-4">
+                      <div className="relative h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ 
+                            width: order.status === 'pending' ? '25%' : 
+                                   order.status === 'preparing' ? '50%' : 
+                                   order.status === 'delivering' ? '75%' : '100%' 
+                          }}
+                          className="absolute inset-y-0 left-0 bg-gold"
+                        />
+                      </div>
+                      
+                      {order.status === 'delivering' && (
+                        <motion.div 
+                          animate={{ x: [0, 20, 0] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                          className="flex items-center gap-2 text-gold"
+                        >
+                          <Truck className="h-4 w-4" />
+                          <span className="text-[10px] font-black uppercase tracking-widest italic">O motoboy já saiu com sua pizza!</span>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2 mb-4">
+                    {order.items.map((item, i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span className="text-white/80">{item.quantity}x {item.name} {item.size && `(${item.size})`}</span>
+                        <span className="text-gold font-bold">R$ {item.price.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <Separator className="bg-white/5 mb-4" />
+                  
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-black text-white">Total: <span className="text-gold">R$ {order.total.toFixed(2)}</span></p>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleReorder(order)}
+                      className="bg-white/10 hover:bg-gold hover:text-deep-black text-white text-[10px] font-black uppercase tracking-widest h-8"
+                    >
+                      PEDIR NOVAMENTE
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <AnimatePresence>
+        {isCartOpen && (
+          <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-end md:justify-center">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCartOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={isMobile ? { y: "100%" } : { x: "100%" }}
+              animate={isMobile ? { y: 0 } : { x: 0 }}
+              exit={isMobile ? { y: "100%" } : { x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className={`
+                relative bg-graphite text-white flex flex-col shadow-2xl border-white/10
+                ${isMobile ? 'w-full h-[90vh] rounded-t-3xl' : 'w-[450px] h-full border-l'}
+              `}
+            >
+              {/* Cart Header */}
+              <div className="p-6 border-b border-white/5 bg-deep-black/40 backdrop-blur-md sticky top-0 z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-gold/10 flex items-center justify-center">
+                      <ShoppingCart className="h-5 w-5 text-gold" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black uppercase italic tracking-tight">Seu <span className="text-gold">Pedido</span></h3>
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{cart.length} {cart.length === 1 ? 'Item' : 'Itens'}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setIsCartOpen(false)} className="rounded-full hover:bg-white/5">
+                    <X className="h-6 w-6" />
+                  </Button>
+                </div>
+
+                {/* Step Indicator */}
+                {cart.length > 0 && (
+                  <div className="flex items-center justify-between px-2">
+                    {[
+                      { id: 'cart', label: 'Carrinho' },
+                      { id: 'details', label: 'Entrega' },
+                      { id: 'payment', label: 'Pagamento' }
+                    ].map((step, idx, arr) => (
+                      <React.Fragment key={step.id}>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className={`h-2 w-2 rounded-full transition-all duration-500 ${
+                            checkoutStep === step.id ? 'bg-gold scale-150 shadow-[0_0_10px_rgba(212,175,55,0.5)]' : 
+                            (arr.findIndex(s => s.id === checkoutStep) > idx ? 'bg-gold/40' : 'bg-white/10')
+                          }`} />
+                          <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${
+                            checkoutStep === step.id ? 'text-gold' : 'text-white/20'
+                          }`}>{step.label}</span>
+                        </div>
+                        {idx < arr.length - 1 && (
+                          <div className={`flex-1 h-[1px] mb-6 mx-2 transition-colors duration-500 ${
+                            arr.findIndex(s => s.id === checkoutStep) > idx ? 'bg-gold/20' : 'bg-white/5'
+                          }`} />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cart Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {checkoutStep === 'cart' && (
+                  <div className="space-y-6">
+                    {cart.length === 0 ? (
+                      <div className="h-[50vh] flex flex-col items-center justify-center text-center space-y-6">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-gold/20 blur-3xl rounded-full" />
+                          <div className="relative h-24 w-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                            <PizzaIcon className="h-12 w-12 text-white/20" />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-white/60 font-black uppercase tracking-[0.2em] text-sm">Opa! Carrinho Vazio</p>
+                          <p className="text-white/20 text-[10px] font-bold uppercase tracking-widest max-w-[200px]">
+                            Parece que você ainda não escolheu sua pizza favorita hoje.
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          <Button 
+                            onClick={() => setIsCartOpen(false)} 
+                            variant="outline" 
+                            className="border-gold/20 text-gold hover:bg-gold hover:text-deep-black font-black uppercase tracking-widest h-12 px-8 rounded-full"
+                          >
+                            VER CARDÁPIO
+                          </Button>
+                          {user && (
+                            <Button 
+                              onClick={() => {
+                                setIsCartOpen(false);
+                                setIsOrdersOpen(true);
+                              }} 
+                              variant="ghost" 
+                              className="text-white/40 hover:text-gold font-black uppercase tracking-widest h-10 px-8 rounded-full gap-2 text-[10px]"
+                            >
+                              <History className="h-4 w-4" />
+                              VER MEUS PEDIDOS
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Itens Selecionados</Label>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setCart([])}
+                            className="text-[10px] font-black uppercase tracking-widest text-pizza-red hover:bg-pizza-red/10 h-6"
+                          >
+                            Limpar Tudo
+                          </Button>
+                        </div>
+                        {cart.map((item) => (
+                          <motion.div 
+                            layout
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            key={item.id} 
+                            className="group relative p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-gold/20 transition-all"
+                          >
+                            <div className="flex gap-4">
+                              <div className="relative h-20 w-20 shrink-0">
+                                <img 
+                                  src={item.pizza.image} 
+                                  alt="" 
+                                  className="h-full w-full rounded-xl object-cover shadow-lg" 
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute -top-2 -left-2 h-6 w-6 rounded-full bg-gold text-deep-black flex items-center justify-center text-[10px] font-black shadow-lg">
+                                  {item.quantity}
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start gap-2">
+                                  <h4 className="font-black uppercase italic text-gold truncate">
+                                    {item.pizza2 ? `Meia ${item.pizza.name} / Meia ${item.pizza2.name}` : item.pizza.name}
+                                  </h4>
+                                  <button 
+                                    onClick={() => removeFromCart(item.id)} 
+                                    className="h-8 w-8 rounded-full flex items-center justify-center text-white/20 hover:text-pizza-red hover:bg-pizza-red/10 transition-all"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  {item.size && (
+                                    <Badge variant="outline" className="text-[8px] border-white/10 text-white/40 uppercase font-black tracking-widest py-0">
+                                      {item.size}
+                                    </Badge>
+                                  )}
+                                  {item.extras.map(extra => (
+                                    <Badge key={extra} variant="outline" className="text-[8px] border-gold/10 text-gold/60 uppercase font-black tracking-widest py-0">
+                                      + {extra}
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <div className="flex justify-between items-center mt-4">
+                                  <div className="flex items-center gap-1 bg-deep-black/50 rounded-full p-0.5 border border-white/5">
+                                    <button 
+                                      onClick={() => updateQuantity(item.id, -1)}
+                                      className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white/40"
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </button>
+                                    <span className="text-xs font-black w-6 text-center">{item.quantity}</span>
+                                    <button 
+                                      onClick={() => updateQuantity(item.id, 1)}
+                                      className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-gold"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                  <span className="font-black text-white text-sm">R$ {item.totalPrice.toFixed(2)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {checkoutStep === 'details' && (
+                  <div className="space-y-8">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
+                          <User className="h-4 w-4 text-gold" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Informações Pessoais</h4>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nome Completo</Label>
+                          <Input 
+                            value={customerInfo.name}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Como podemos te chamar?"
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">WhatsApp (Obrigatório)</Label>
+                          <Input 
+                            value={customerInfo.phone}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
+                            placeholder="(22) 99999-9999"
+                            required
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 mt-8 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
+                          <MapPin className="h-4 w-4 text-gold" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Endereço de Entrega</h4>
+                      </div>
+
+                      <div className="grid grid-cols-12 gap-4">
+                        <div className="col-span-12 space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Rua / Logradouro</Label>
+                          <Input 
+                            value={customerInfo.street}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, street: e.target.value }))}
+                            placeholder="Nome da rua"
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                          />
+                        </div>
+                        <div className="col-span-4 space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Número</Label>
+                          <Input 
+                            value={customerInfo.number}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value }))}
+                            placeholder="Nº"
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                          />
+                        </div>
+                        <div className="col-span-8 space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Bairro</Label>
+                          <select 
+                            value={customerInfo.neighborhood}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, neighborhood: e.target.value }))}
+                            className="w-full bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 text-white appearance-none cursor-pointer"
+                          >
+                            <option value="" disabled className="bg-deep-black">Selecione o bairro</option>
+                            {NEIGHBORHOODS.map(n => (
+                              <option key={n} value={n} className="bg-deep-black">{n}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-12 space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Complemento / Referência</Label>
+                          <Input 
+                            value={customerInfo.complement}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, complement: e.target.value }))}
+                            placeholder="Apto, bloco, próximo a..."
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                          />
+                        </div>
+                        <div className="col-span-12 space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Observações do Pedido</Label>
+                          <Input 
+                            value={customerInfo.observations}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, observations: e.target.value }))}
+                            placeholder="Ex: Sem cebola, troco para R$ 100..."
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {checkoutStep === 'payment' && (
+                  <div className="space-y-8">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
+                          <Ticket className="h-4 w-4 text-gold" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Cupom de Desconto</h4>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Input 
+                          placeholder="CÓDIGO" 
+                          value={couponCode}
+                          onChange={e => setCouponCode(e.target.value)}
+                          className="bg-white/5 border-white/10 uppercase h-12 rounded-xl focus:border-gold/50 transition-all font-black tracking-widest"
+                        />
+                        <Button 
+                          onClick={handleApplyCoupon}
+                          className="bg-gold text-deep-black font-black uppercase tracking-widest h-12 px-6 rounded-xl shadow-lg shadow-gold/10"
+                        >
+                          APLICAR
+                        </Button>
+                      </div>
+                      {appliedCoupon && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center gap-2 text-[10px] text-green-500 font-black uppercase tracking-widest"
+                        >
+                          <Star className="h-3 w-3 fill-current" />
+                          Cupom Ativado: {appliedCoupon.discount}% OFF
+                        </motion.div>
+                      )}
+
+                      <div className="flex items-center gap-3 mt-8 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
+                          <CreditCard className="h-4 w-4 text-gold" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Método de Pagamento</h4>
+                      </div>
+
+                      <Tabs defaultValue="delivery" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 bg-white/5 border border-white/10 p-1 h-12 rounded-xl mb-4">
+                          <TabsTrigger value="delivery" className="font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gold data-[state=active]:text-deep-black rounded-lg transition-all">Na Entrega</TabsTrigger>
+                          <TabsTrigger value="online" className="font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gold data-[state=active]:text-deep-black rounded-lg transition-all">Pelo Site</TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="delivery" className="mt-0 space-y-3">
+                          <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} className="space-y-3">
+                            {[
+                              { id: 'cash_delivery', label: 'Dinheiro', icon: Wallet, desc: 'Pague ao motoboy no ato da entrega.' },
+                              { id: 'card_delivery', label: 'Cartão', icon: CreditCard, desc: 'O motoboy leva a maquininha.' }
+                            ].map((method) => (
+                              <div key={method.id} className="space-y-3">
+                                <div 
+                                  className={`flex items-center space-x-3 p-4 rounded-2xl border transition-all cursor-pointer group ${
+                                    paymentMethod === method.id ? 'bg-gold/10 border-gold shadow-[0_0_15px_rgba(212,175,55,0.1)]' : 'bg-white/5 border-white/5 hover:border-white/20'
+                                  }`} 
+                                  onClick={() => setPaymentMethod(method.id as PaymentMethod)}
+                                >
+                                  <RadioGroupItem value={method.id} id={method.id} className="border-gold text-gold" />
+                                  <div className="flex-1 flex items-center gap-4">
+                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
+                                      paymentMethod === method.id ? 'bg-gold text-deep-black' : 'bg-white/5 text-white/40 group-hover:text-white'
+                                    }`}>
+                                      <method.icon className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={method.id} className="font-black uppercase italic tracking-tight cursor-pointer block">
+                                        {method.label}
+                                      </Label>
+                                      <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">{method.desc}</p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {method.id === 'cash_delivery' && paymentMethod === 'cash_delivery' && (
+                                  <motion.div 
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="px-4 pb-4 space-y-4"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Precisa de troco?</Label>
+                                      <button 
+                                        onClick={() => setCustomerInfo(prev => ({ ...prev, needChange: !prev.needChange }))}
+                                        className={`h-5 w-10 rounded-full transition-all relative ${customerInfo.needChange ? 'bg-gold' : 'bg-white/10'}`}
+                                      >
+                                        <motion.div 
+                                          animate={{ x: customerInfo.needChange ? 20 : 4 }}
+                                          className={`h-3 w-3 rounded-full absolute top-1 ${customerInfo.needChange ? 'bg-deep-black' : 'bg-white/40'}`}
+                                        />
+                                      </button>
+                                    </div>
+                                    
+                                    {customerInfo.needChange && (
+                                      <motion.div 
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className="space-y-2"
+                                      >
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Troco para quanto?</Label>
+                                        <Input 
+                                          type="number"
+                                          placeholder={`Mínimo R$ ${cartTotal.toFixed(2)}`}
+                                          value={customerInfo.changeFor}
+                                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, changeFor: e.target.value }))}
+                                          className={cn(
+                                            "bg-white/5 border-white/10 h-10 text-sm focus:border-gold/50",
+                                            parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
+                                          )}
+                                        />
+                                        {parseFloat(customerInfo.changeFor) < cartTotal && (
+                                          <p className="text-[9px] text-pizza-red font-bold uppercase tracking-widest">O valor deve ser maior que o total</p>
+                                        )}
+                                      </motion.div>
+                                    )}
+                                  </motion.div>
+                                )}
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </TabsContent>
+                        
+                        <TabsContent value="online" className="mt-0">
+                          <div 
+                            className={`flex items-center space-x-3 p-4 rounded-2xl border transition-all cursor-pointer group ${
+                              paymentMethod === 'pix_now' ? 'bg-gold/10 border-gold shadow-[0_0_15px_rgba(212,175,55,0.1)]' : 'bg-white/5 border-white/5 hover:border-white/20'
+                            }`} 
+                            onClick={() => setPaymentMethod('pix_now')}
+                          >
+                            <div className="flex-1 flex items-center gap-4">
+                              <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
+                                paymentMethod === 'pix_now' ? 'bg-gold text-deep-black' : 'bg-white/5 text-white/40 group-hover:text-white'
+                              }`}>
+                                <QrCode className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <Label className="font-black uppercase italic tracking-tight cursor-pointer block">
+                                  Pix (Copia e Cola)
+                                </Label>
+                                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Gere o código e pague agora.</p>
+                              </div>
+                            </div>
+                            {paymentMethod === 'pix_now' && (
+                              <div className="h-6 w-6 rounded-full bg-gold flex items-center justify-center">
+                                <Star className="h-3 w-3 text-deep-black fill-current" />
+                              </div>
+                            )}
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  </div>
+                )}
+
+                {checkoutStep === 'confirmation' && (
+                  <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                    <div className="p-4 bg-white rounded-2xl shadow-xl">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(generatePixPayload(cartTotal))}`}
+                        alt="QR Code Pix"
+                        className="h-40 w-40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-2xl font-black uppercase italic text-gold">Escaneie ou Copie</h4>
+                      <p className="text-sm text-white/60">Pague o Pix de R$ {cartTotal.toFixed(2)} para confirmar.</p>
+                      <Badge variant="outline" className="border-gold/20 text-gold text-[10px] animate-pulse">
+                        AGUARDANDO PAGAMENTO...
+                      </Badge>
+                    </div>
+                    
+                    <div className="w-full p-4 bg-deep-black rounded-2xl border border-white/10 break-all text-[10px] font-mono text-gold/80">
+                      {generatePixPayload(cartTotal)}
+                    </div>
+                    
+                    <Button 
+                      className="w-full bg-gold text-deep-black font-black uppercase"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatePixPayload(cartTotal));
+                        toast.success("Código Pix copiado!");
+                      }}
+                    >
+                      COPIAR CÓDIGO PIX
+                    </Button>
+                    
+                    <div className="flex flex-col gap-3 w-full">
+                      <div className="flex items-center gap-3 p-4 bg-pizza-red/10 rounded-2xl border border-pizza-red/20 text-left animate-pulse">
+                        <AlertCircle className="h-5 w-5 text-pizza-red shrink-0" />
+                        <div>
+                          <p className="text-xs font-black uppercase text-pizza-red tracking-widest">Atenção!</p>
+                          <p className="text-[10px] text-white/70 font-bold uppercase">
+                            Você deve enviar o <span className="text-white underline">comprovante</span> pelo WhatsApp após clicar no botão abaixo.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5 text-left">
+                        <Info className="h-5 w-5 text-gold shrink-0" />
+                        <p className="text-[10px] text-white/60 font-medium">
+                          O sistema identificará seu pagamento através do valor exato de <span className="text-gold font-bold">R$ {cartTotal.toFixed(2)}</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Cart Footer */}
+              <div className="p-6 border-t border-white/5 bg-deep-black/80 backdrop-blur-xl space-y-4">
+                {cart.length > 0 && checkoutStep !== 'confirmation' && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex justify-between items-end">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Total do Pedido</p>
+                        <p className="text-4xl font-black text-gold tracking-tighter">R$ {cartTotal.toFixed(2)}</p>
+                      </div>
+                      
+                      {checkoutStep === 'cart' && (
+                        <Button 
+                          onClick={() => setCheckoutStep('details')}
+                          className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group"
+                        >
+                          ENTREGA <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                      )}
+
+                      {checkoutStep === 'details' && (
+                        <Button 
+                          disabled={!customerInfo.name || !customerInfo.phone || !customerInfo.street || !customerInfo.number || !customerInfo.neighborhood}
+                          onClick={() => setCheckoutStep('payment')}
+                          className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group disabled:opacity-50"
+                        >
+                          PAGAMENTO <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                      )}
+
+                      {checkoutStep === 'payment' && (
+                        <Button 
+                          disabled={paymentMethod === 'cash_delivery' && customerInfo.needChange && (!customerInfo.changeFor || parseFloat(customerInfo.changeFor) < cartTotal)}
+                          onClick={handleFinalizeOrder}
+                          className="bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-green-600/20 group disabled:opacity-50"
+                        >
+                          FINALIZAR <MessageCircle className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {checkoutStep !== 'cart' && (
+                      <Button 
+                        variant="ghost" 
+                        className="w-full text-white/20 hover:text-white text-[10px] font-black uppercase tracking-widest h-8"
+                        onClick={() => {
+                          if (checkoutStep === 'details') setCheckoutStep('cart');
+                          if (checkoutStep === 'payment') setCheckoutStep('details');
+                        }}
+                      >
+                        ← VOLTAR PARA {checkoutStep === 'details' ? 'CARRINHO' : 'ENTREGA'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {checkoutStep === 'confirmation' && (
+                  <div className="space-y-3">
+                    <Button 
+                      onClick={() => {
+                        const pizzariaLink = generateWhatsAppLink(undefined, 'pizzaria');
+                        const cozinhaLink = generateWhatsAppLink(undefined, 'cozinha');
+                        
+                        window.open(pizzariaLink, '_blank');
+                        
+                        setTimeout(() => {
+                          window.open(cozinhaLink, '_blank');
+                        }, 500);
+
+                        setIsCartOpen(false);
+                        setCart([]);
+                        setCheckoutStep('cart');
+                        setAppliedCoupon(null);
+                      }}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest h-16 rounded-2xl shadow-lg shadow-green-600/20 group text-sm"
+                    >
+                      JÁ PAGUEI, ENVIAR PEDIDO <MessageCircle className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      className="w-full text-white/20 hover:text-white text-[10px] font-black uppercase tracking-widest"
+                      onClick={() => setCheckoutStep('payment')}
+                    >
+                      ALTERAR PAGAMENTO
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer */}
+      <footer id="contact" className="bg-deep-black border-t border-white/10 pt-16 md:pt-20 pb-10">
+        <div className="container px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16 mb-16">
+            <div className="space-y-6 md:space-y-8">
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pizza-red text-white">
+                  <PizzaIcon className="h-6 w-6" />
+                </div>
+                <h2 className="text-2xl font-extrabold tracking-tighter text-gold">
+                  OURO <span className="text-white">PRETO</span>
+                </h2>
+              </div>
+              <p className="text-white/50 text-sm leading-relaxed max-w-xs">
+                A melhor pizzaria de Conselheiro Paulino. Ingredientes selecionados e massa artesanal feita com amor.
+              </p>
+              <div className="flex gap-4">
+                <a href="https://www.instagram.com/pizzariaelanchoneteouropreto/" target="_blank" rel="noreferrer" className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-gold hover:text-deep-black transition-all border border-white/5">
+                  <Instagram className="h-6 w-6" />
+                </a>
+                <a href="tel:22998487785" className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-gold hover:text-deep-black transition-all border border-white/5">
+                  <Phone className="h-6 w-6" />
+                </a>
+              </div>
+            </div>
+
+            <div className="space-y-6 md:space-y-8">
+              <h4 className="text-xs font-black uppercase tracking-[0.3em] text-gold">Horários</h4>
+              <ul className="space-y-4 text-sm font-medium">
+                <li className="flex justify-between border-b border-white/5 pb-2">
+                  <span className="text-white/40">Segunda</span>
+                  <span className="text-pizza-red font-bold uppercase">Fechado</span>
+                </li>
+                <li className="flex justify-between border-b border-white/5 pb-2">
+                  <span className="text-white/40">Terça - Quinta</span>
+                  <span>18:00 - 23:30</span>
+                </li>
+                <li className="flex justify-between border-b border-white/5 pb-2">
+                  <span className="text-white/40">Sexta - Sábado</span>
+                  <span>18:00 - 00:00</span>
+                </li>
+                <li className="flex justify-between border-b border-white/5 pb-2">
+                  <span className="text-white/40">Domingo</span>
+                  <span>18:00 - 23:30</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-6 md:space-y-8">
+              <h4 className="text-xs font-black uppercase tracking-[0.3em] text-gold">Localização</h4>
+              <div className="space-y-6 text-sm">
+                <div className="flex gap-4">
+                  <MapPin className="h-6 w-6 text-gold shrink-0" />
+                  <div className="space-y-3">
+                    <span className="text-white/60 leading-relaxed block">Av. dos Ferroviários, 1517 - Conselheiro Paulino, Nova Friburgo - RJ, 28633-010</span>
+                    <a 
+                      href="https://www.google.com/maps/search/?api=1&query=Av.+dos+Ferroviários,+1517+-+Conselheiro+Paulino,+Nova+Friburgo+-+RJ,+28633-010" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gold hover:text-white transition-colors"
+                    >
+                      Abrir no Google Maps <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <Clock className="h-6 w-6 text-gold shrink-0" />
+                  <span className="text-white/60">Entrega rápida em toda a região.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Separator className="bg-white/10 mb-8" />
+          
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-white/20">
+            <p>© 2024 Pizzaria Ouro Preto. Sabor que vem do forno.</p>
+            <div className="flex gap-8 items-center">
+              <button onClick={() => setIsAdminView(true)} className="hover:text-gold transition-colors">Admin</button>
+              <a href="#" className="hover:text-white transition-colors">Privacidade</a>
+              <a href="#" className="hover:text-white transition-colors">Termos</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </>
+  )}
+</div>
+  );
+}
