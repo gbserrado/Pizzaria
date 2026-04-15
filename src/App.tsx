@@ -55,7 +55,7 @@ import { Toaster, toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PIZZAS, SIZES, EXTRA_INGREDIENTS, NEIGHBORHOODS, DELIVERY_FEES, type Pizza, type PizzaSize, type Order, type CartItem, type OrderStatus, type StoreConfig, type PaymentMethod } from './types';
 import { auth, db } from './firebase';
-import AdminDashboard from './components/AdminDashboard';
+import AdminDashboardComponent from './components/AdminDashboard';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -214,7 +214,7 @@ export default function App() {
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, 'config', 'store'), (snapshot) => {
       if (snapshot.exists()) setStoreConfig(snapshot.data() as StoreConfig);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'config/store'));
 
     const unsubMenu = onSnapshot(collection(db, 'menu'), (snapshot) => {
       const status: Record<string, boolean> = {};
@@ -222,7 +222,7 @@ export default function App() {
         status[doc.id] = doc.data().available;
       });
       setMenuStatus(status);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'menu'));
 
     return () => {
       unsubConfig();
@@ -242,7 +242,7 @@ export default function App() {
         if (snapshot.exists()) {
           setCurrentOrderStatus(snapshot.data().status as OrderStatus);
         }
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, `orders/${lastOrderId}`));
       return () => unsubOrder();
     }
   }, [checkoutStep, lastOrderId]);
@@ -254,7 +254,7 @@ export default function App() {
         if (snapshot.exists()) {
           setLoyaltyPoints(snapshot.data().points || 0);
         }
-      });
+      }, (error) => handleFirestoreError(error, OperationType.GET, `loyalty/${customerInfo.phone}`));
       return () => unsubLoyalty();
     }
   }, [customerInfo.phone]);
@@ -319,7 +319,7 @@ export default function App() {
         const unsubOrders = onSnapshot(q, (snapshot) => {
           const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
           setOrders(ordersData);
-        });
+        }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
         return () => unsubOrders();
       } else {
         setOrders([]);
@@ -495,22 +495,7 @@ export default function App() {
     }
   };
 
-  // Admin Sound Notification
-  useEffect(() => {
-    if (isAdminView) {
-      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === "added" && !snapshot.metadata.fromCache) {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-            audio.play().catch(e => console.log('Audio play blocked'));
-            toast.info('Novo pedido recebido!', { icon: '🍕' });
-          }
-        });
-      });
-      return () => unsubscribe();
-    }
-  }, [isAdminView]);
+  // Admin Sound Notification removed - handled in AdminDashboard component
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -669,69 +654,7 @@ export default function App() {
     return `https://wa.me/${PIZZARIA_PHONE}?text=${encodeURIComponent(message)}`;
   };
 
-  const AdminDashboard = () => (
-    <div className="container py-20 space-y-12">
-      <div className="flex justify-between items-center">
-        <h2 className="text-4xl font-black uppercase italic tracking-tighter text-gold">Painel Administrativo</h2>
-        <Button onClick={() => setIsAdminView(false)} variant="outline" className="border-white/10 text-white">Voltar para Loja</Button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6">
-        {orders.map((order) => (
-          <Card key={order.id} className="bg-white/5 border-white/10 p-6">
-            <div className="flex flex-col md:flex-row justify-between gap-6">
-              <div className="space-y-4 flex-1">
-                <div className="flex items-center gap-3">
-                  <Badge className="bg-gold text-deep-black font-black uppercase tracking-widest text-[10px]">#{order.id?.slice(-6).toUpperCase()}</Badge>
-                  <span className="text-white/40 text-xs font-bold">{order.createdAt?.toDate().toLocaleString('pt-BR')}</span>
-                </div>
-                
-                <div className="space-y-1">
-                  <p className="text-lg font-black uppercase italic text-white">{order.address.name}</p>
-                  <p className="text-sm text-white/60">{order.address.street}, {order.address.number} - {order.address.neighborhood}</p>
-                  <p className="text-xs text-gold font-bold">{order.address.phone}</p>
-                </div>
-
-                <div className="pt-4 border-t border-white/5 space-y-2">
-                  {order.items.map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-white/80">{item.quantity}x {item.name} {item.size && `(${item.size})`}</span>
-                      <span className="text-white font-bold">R$ {item.price.toFixed(2)}</span>
-                    </div>
-                  ))}
-                  <div className="pt-2 flex justify-between items-center">
-                    <span className="text-xs font-black uppercase tracking-widest text-white/40">Total</span>
-                    <span className="text-xl font-black text-gold">R$ {order.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 md:w-48">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">Alterar Status</Label>
-                {['pending', 'preparing', 'delivering', 'completed', 'cancelled'].map((status) => (
-                  <Button
-                    key={status}
-                    size="sm"
-                    variant={order.status === status ? 'default' : 'outline'}
-                    onClick={() => updateOrderStatus(order.id!, status)}
-                    className={cn(
-                      "text-[10px] font-black uppercase tracking-widest h-9",
-                      order.status === status ? "bg-gold text-deep-black" : "border-white/10 text-white/60 hover:text-white"
-                    )}
-                  >
-                    {status === 'pending' ? 'Pendente' : 
-                     status === 'preparing' ? 'Preparando' :
-                     status === 'delivering' ? 'Em Entrega' :
-                     status === 'completed' ? 'Concluído' : 'Cancelado'}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
+  // Local AdminDashboard removed to use the one from components/AdminDashboard.tsx
   const CustomizationContent = () => {
     const [secondPizzaCategory, setSecondPizzaCategory] = useState<string>('Tradicional');
     const availableSecondPizzas = displayPizzas.filter(p => p.category !== 'Bebidas' && p.available);
@@ -948,7 +871,7 @@ export default function App() {
       )}
 
       {isAdminView ? (
-        <AdminDashboard />
+        <AdminDashboardComponent />
       ) : (
         <>
           {/* Header */}

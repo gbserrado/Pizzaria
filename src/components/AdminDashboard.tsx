@@ -162,6 +162,9 @@ export default function AdminDashboard() {
       }
 
       setOrders(newOrders);
+    }, (error) => {
+      console.error('Admin Orders Error:', error);
+      toast.error('Erro ao carregar pedidos. Verifique suas permissões.');
     });
 
     // Listen to store config
@@ -172,6 +175,8 @@ export default function AdminDashboard() {
         // Initialize if not exists
         setDoc(snapshot.ref, { lojaAberta: true });
       }
+    }, (error) => {
+      console.error('Admin Config Error:', error);
     });
 
     // Listen to menu status
@@ -181,6 +186,8 @@ export default function AdminDashboard() {
         status[doc.id] = doc.data().available;
       });
       setMenuStatus(status);
+    }, (error) => {
+      console.error('Admin Menu Error:', error);
     });
 
     return () => {
