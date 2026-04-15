@@ -880,7 +880,7 @@ export default function App() {
           <div 
             className="flex items-center gap-2 cursor-pointer group"
             onClick={() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
               setIsCartOpen(false);
               setIsOrdersOpen(false);
               setSelectedPizza(null);
@@ -1155,7 +1155,7 @@ export default function App() {
                               {!pizza.available && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
                                   <Badge className="bg-pizza-red text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1">
-                                    Esgotada
+                                    Esgotado
                                   </Badge>
                                 </div>
                               )}
