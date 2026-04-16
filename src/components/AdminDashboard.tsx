@@ -49,14 +49,39 @@ import { cn } from '@/lib/utils';
 
 const ADMIN_PASSWORD = 'admin'; // Simple password as requested
 
-  const OrderCard: React.FC<{ order: Order, onUpdateStatus: (id: string, status: OrderStatus, phone?: string) => void | Promise<void> }> = ({ order, onUpdateStatus }) => (
-    <Card className="bg-white/5 border-white/10 text-white hover:border-gold/30 transition-all group overflow-hidden">
-      <div className="p-4 space-y-4">
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <p className="text-[10px] font-black text-gold uppercase tracking-widest">#{order.id?.slice(-6)}</p>
-            <h3 className="font-black uppercase italic text-lg">{order.customerName}</h3>
-          </div>
+  const OrderCard: React.FC<{ order: Order, onUpdateStatus: (id: string, status: OrderStatus, phone?: string) => void | Promise<void> }> = ({ order, onUpdateStatus }) => {
+    const [isPanic, setIsPanic] = useState(false);
+
+    useEffect(() => {
+      if (order.status !== 'received' || !order.createdAt) {
+        setIsPanic(false);
+        return;
+      }
+
+      const checkPanic = () => {
+        const orderTime = order.createdAt?.toDate().getTime() || 0;
+        const diffMinutes = (Date.now() - orderTime) / (1000 * 60);
+        setIsPanic(diffMinutes > 3);
+      };
+
+      checkPanic();
+      const interval = setInterval(checkPanic, 30000); // Check every 30 seconds
+      return () => clearInterval(interval);
+    }, [order.status, order.createdAt]);
+
+    return (
+      <Card className={cn(
+        "bg-white/5 border-white/10 text-white hover:border-gold/30 transition-all group overflow-hidden",
+        isPanic && "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse"
+      )}>
+        <div className="p-4 space-y-4">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <p className={cn("text-[10px] font-black uppercase tracking-widest", isPanic ? "text-red-400" : "text-gold")}>
+                #{order.id?.slice(-6)} {isPanic && "⚠️ ATRASADO"}
+              </p>
+              <h3 className="font-black uppercase italic text-lg">{order.customerName}</h3>
+            </div>
           <Badge variant="outline" className="bg-gold/10 text-gold border-gold/20 uppercase text-[10px] font-black">
             {order.paymentMethod === 'pix_now' ? 'PIX' : order.paymentMethod === 'card_delivery' ? 'CARTÃO' : 'DINHEIRO'}
           </Badge>
@@ -103,7 +128,7 @@ const ADMIN_PASSWORD = 'admin'; // Simple password as requested
           {order.status === 'received' && (
             <Button 
               size="sm"
-              className="bg-gold hover:bg-gold-dark text-deep-black text-[10px] font-black uppercase"
+              className={cn("text-[10px] font-black uppercase", isPanic ? "bg-red-600 hover:bg-red-700 text-white" : "bg-gold hover:bg-gold-dark text-deep-black")}
               onClick={() => onUpdateStatus(order.id!, 'cooking')}
             >
               Produzir
@@ -133,6 +158,7 @@ const ADMIN_PASSWORD = 'admin'; // Simple password as requested
       </div>
     </Card>
   );
+};
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -140,7 +166,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [storeConfig, setStoreConfig] = useState<StoreConfig>({ lojaAberta: true });
   const [menuStatus, setMenuStatus] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'menu' | 'settings'>('orders');
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -419,6 +445,13 @@ export default function AdminDashboard() {
             <ShoppingBag className="h-6 w-6" />
           </button>
           <button 
+            onClick={() => setActiveTab('kitchen')}
+            className={cn("p-3 rounded-xl transition-all", activeTab === 'kitchen' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
+            title="Cozinha"
+          >
+            <Utensils className="h-6 w-6" />
+          </button>
+          <button 
             onClick={() => setActiveTab('menu')}
             className={cn("p-3 rounded-xl transition-all", activeTab === 'menu' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
           >
@@ -445,7 +478,7 @@ export default function AdminDashboard() {
         <header className="h-20 border-b border-white/10 bg-graphite/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-black uppercase italic tracking-tighter">
-              {activeTab === 'orders' ? 'Gestão de Pedidos' : activeTab === 'menu' ? 'Cardápio' : 'Configurações'}
+              {activeTab === 'orders' ? 'Gestão de Pedidos' : activeTab === 'kitchen' ? 'Visão da Cozinha' : activeTab === 'menu' ? 'Cardápio' : 'Configurações'}
             </h1>
             <Badge variant="outline" className={cn("uppercase text-[10px] font-black", storeConfig.lojaAberta ? "text-green-500 border-green-500/20 bg-green-500/10" : "text-red-500 border-red-500/20 bg-red-500/10")}>
               {storeConfig.lojaAberta ? 'Loja Aberta' : 'Loja Fechada'}
@@ -515,6 +548,62 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'kitchen' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {orders.filter(o => o.status === 'cooking').map(order => (
+                <Card key={order.id} className="bg-white/5 border-white/10 text-white overflow-hidden">
+                  <div className="bg-gold text-deep-black p-4 text-center">
+                    <h2 className="text-4xl font-black uppercase tracking-tighter">#{order.id?.slice(-6)}</h2>
+                    <p className="text-sm font-bold uppercase">{order.customerName}</p>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    {order.items.map((item, idx) => (
+                      <div key={idx} className="space-y-2 border-b border-white/10 pb-4 last:border-0 last:pb-0">
+                        <div className="flex items-start gap-4">
+                          <span className="text-4xl font-black text-gold">{item.quantity}x</span>
+                          <div>
+                            <h3 className="text-2xl font-black uppercase leading-tight">
+                              {item.pizza2 ? `1/2 ${item.pizza.name} + 1/2 ${item.pizza2.name}` : item.pizza.name}
+                            </h3>
+                            {item.size && <p className="text-xl text-white/60 font-bold uppercase mt-1">Tamanho: {item.size}</p>}
+                          </div>
+                        </div>
+                        {item.extras.length > 0 && (
+                          <div className="bg-red-500/20 border border-red-500/50 p-3 rounded-xl mt-4">
+                            <p className="text-sm font-black text-red-400 uppercase mb-1">Adicionais:</p>
+                            <ul className="list-disc list-inside text-lg font-bold text-white">
+                              {item.extras.map((extra, i) => <li key={i}>{extra}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                        {order.observations && (
+                          <div className="bg-blue-500/20 border border-blue-500/50 p-3 rounded-xl mt-4">
+                            <p className="text-sm font-black text-blue-400 uppercase mb-1">OBSERVAÇÃO:</p>
+                            <p className="text-lg font-bold text-white uppercase">{order.observations}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 bg-black/40 border-t border-white/10">
+                    <Button 
+                      className="w-full h-16 text-xl bg-blue-500 hover:bg-blue-600 text-white font-black uppercase tracking-widest"
+                      onClick={() => updateOrderStatus(order.id!, 'delivery')}
+                    >
+                      PRONTO PARA ENTREGA
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+              {orders.filter(o => o.status === 'cooking').length === 0 && (
+                <div className="col-span-full py-20 text-center text-white/40">
+                  <Utensils className="h-24 w-24 mx-auto mb-6 opacity-20" />
+                  <h2 className="text-3xl font-black uppercase tracking-widest">Nenhum pedido na cozinha</h2>
+                </div>
+              )}
             </div>
           )}
 

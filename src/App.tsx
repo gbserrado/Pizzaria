@@ -184,6 +184,7 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'details' | 'payment' | 'confirmation'>('cart');
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+  const [whatsappLink, setWhatsappLink] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState('Destaques');
   
   // Orders State
@@ -485,6 +486,11 @@ export default function App() {
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
       setLastOrderId(docRef.id);
+      
+      // Generate the WhatsApp link BEFORE clearing the cart
+      const link = generateWhatsAppLink(docRef.id, 'pizzaria');
+      setWhatsappLink(link);
+
       setCheckoutStep('confirmation');
       setCart([]);
       setAppliedCoupon(null);
@@ -582,6 +588,21 @@ export default function App() {
   const PIZZARIA_PHONE = "5522998487785";
   const COZINHA_PHONE = "5522998017088";
 
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      let formatted = numbers;
+      if (numbers.length > 2) {
+        formatted = `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+      }
+      if (numbers.length > 7) {
+        formatted = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+      }
+      return formatted;
+    }
+    return value.slice(0, 15);
+  };
+
   const generateWhatsAppLink = (orderId?: string, target: 'pizzaria' | 'cozinha' = 'pizzaria') => {
     const id = orderId || lastOrderId || '---';
     const shortId = id.slice(-6).toUpperCase();
@@ -597,60 +618,51 @@ export default function App() {
       return `https://wa.me/${COZINHA_PHONE}?text=${encodeURIComponent(kitchenMsg)}`;
     }
 
-    let message = `*🍕 NOVO PEDIDO - OURO PRETO 🍕*\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `*🆔 Pedido:* #${shortId}\n` +
-      `*👤 Cliente:* ${customerInfo.name}\n` +
-      `*📱 WhatsApp:* ${customerInfo.phone}\n\n` +
-      `*🛒 ITENS DO PEDIDO*\n`;
+    let message = `*🍕 NOVO PEDIDO - #${shortId}*\n\n` +
+      `*👤 Nome:* ${customerInfo.name}\n` +
+      `*📱 Tel:* ${customerInfo.phone}\n\n` +
+      `*🛒 ITENS:*\n`;
 
-    cart.forEach((item, index) => {
+    cart.forEach((item) => {
       const pizzaName = item.pizza2 
         ? `Meia ${item.pizza.name} / Meia ${item.pizza2.name}`
         : `${item.pizza.name}`;
         
-      message += `${index + 1}x *${pizzaName}* ${item.size ? `(${item.size})` : ''}\n`;
+      message += `${item.quantity}x *${pizzaName}* ${item.size ? `(${item.size})` : ''}\n`;
       if (item.extras.length > 0) {
-        message += `   + Adicionais: ${item.extras.join(', ')}\n`;
+        message += `   + ${item.extras.join(', ')}\n`;
       }
-      message += `   R$ ${item.totalPrice.toFixed(2)}\n\n`;
     });
 
-    message += `*🚚 TIPO DE ENTREGA:* ${deliveryType === 'delivery' ? 'Entrega em Domicílio' : 'Retirada no Local'}\n`;
-    
-    if (deliveryType === 'delivery') {
-      message += `*📍 ENDEREÇO:* ${customerInfo.street}, ${customerInfo.number} - ${customerInfo.neighborhood}\n`;
-      if (customerInfo.complement) {
-        message += `*Ref:* ${customerInfo.complement}\n`;
-      }
-      const mapsQuery = encodeURIComponent(`${customerInfo.street}, ${customerInfo.number} - ${customerInfo.neighborhood}, Nova Friburgo - RJ`);
-      message += `*🗺️ Google Maps:* https://www.google.com/maps/search/?api=1&query=${mapsQuery}\n`;
-    }
-
-    if (customerInfo.observations) {
-      message += `*📝 OBSERVAÇÕES:* ${customerInfo.observations}\n`;
-    }
+    message += `\n*💰 VALOR TOTAL:* R$ ${cartTotal.toFixed(2)}\n`;
+    message += `*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'pix_now' ? 'PIX (Comprovante abaixo)' : customerInfo.paymentMethod === 'card_delivery' ? 'CARTÃO (Levar maquininha)' : 'DINHEIRO'}\n`;
 
     if (customerInfo.needChange) {
       const changeValue = parseFloat(customerInfo.changeFor) - cartTotal;
-      message += `*💵 TROCO:* Para R$ ${parseFloat(customerInfo.changeFor).toFixed(2)} (Levar R$ ${changeValue.toFixed(2)})\n`;
+      message += `*💵 TROCO PARA:* R$ ${parseFloat(customerInfo.changeFor).toFixed(2)} (Troco: R$ ${changeValue.toFixed(2)})\n`;
     }
 
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━\n`;
-    const subtotal = cartTotal - deliveryFee;
-    message += `*Subtotal:* R$ ${subtotal.toFixed(2)}\n`;
     if (deliveryType === 'delivery') {
-      message += `*Taxa de Entrega:* R$ ${deliveryFee.toFixed(2)}\n`;
+      message += `\n*📍 ENDEREÇO:* ${customerInfo.street}, ${customerInfo.number} - ${customerInfo.neighborhood}\n`;
+      if (customerInfo.complement) {
+        message += `*Ref:* ${customerInfo.complement}\n`;
+      }
+      const mapsQuery = encodeURIComponent(`${customerInfo.street}, ${customerInfo.number}, ${customerInfo.neighborhood}, Nova Friburgo`);
+      message += `*🗺️ GPS:* https://www.google.com/maps/search/?api=1&query=${mapsQuery}\n`;
+    } else {
+      message += `\n*🚶 RETIRADA NO BALCÃO*\n`;
     }
-    if (appliedCoupon) {
-      message += `*Desconto (${appliedCoupon.code}):* -${appliedCoupon.discount}%\n`;
+
+    if (customerInfo.observations) {
+      message += `\n*📝 OBS:* ${customerInfo.observations}\n`;
     }
-    message += `*💰 TOTAL GERAL:* R$ ${cartTotal.toFixed(2)}\n\n`;
-    
-    message += `_O pagamento é feito na entrega (Dinheiro, Cartão ou PIX)._\n\n`;
-    
-    message += `*Olá! Gostaria de confirmar o meu pedido. Qual é o tempo estimado de entrega e o valor final com a taxa?*`;
-    
+
+    if (customerInfo.paymentMethod === 'pix_now') {
+      message += `\nJá realizei o pagamento via PIX e estou enviando o comprovante abaixo.`;
+    } else {
+      message += `\nQual a previsão de entrega?`;
+    }
+
     return `https://wa.me/${PIZZARIA_PHONE}?text=${encodeURIComponent(message)}`;
   };
 
@@ -848,6 +860,45 @@ export default function App() {
     </div>
   );
 
+  const getNextOpeningTime = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const currentTime = hour + minute / 60;
+
+    // Schedule definition
+    // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
+    const schedule = {
+      0: { open: 18, close: 23.5, name: 'Domingo' },
+      1: null, // Closed
+      2: { open: 18, close: 23.5, name: 'Terça-feira' },
+      3: { open: 18, close: 23.5, name: 'Quarta-feira' },
+      4: { open: 18, close: 23.5, name: 'Quinta-feira' },
+      5: { open: 18, close: 24, name: 'Sexta-feira' },
+      6: { open: 18, close: 24, name: 'Sábado' }
+    };
+
+    const todaySchedule = schedule[day as keyof typeof schedule];
+
+    if (todaySchedule && currentTime < todaySchedule.open) {
+      return `Hoje às 18:00`;
+    }
+
+    // Find next open day
+    for (let i = 1; i <= 7; i++) {
+      const nextDay = (day + i) % 7;
+      const nextSchedule = schedule[nextDay as keyof typeof schedule];
+      if (nextSchedule) {
+        if (i === 1) {
+          return `Amanhã às 18:00`;
+        }
+        return `${nextSchedule.name} às 18:00`;
+      }
+    }
+    return 'Em breve';
+  };
+
   return (
     <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-deep-black">
       <audio ref={successAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" />
@@ -859,11 +910,15 @@ export default function App() {
             <Clock className="h-16 w-16 text-gold animate-pulse" />
           </div>
           <h2 className="text-4xl font-black uppercase italic text-white mb-2">Loja Fechada</h2>
-          <p className="text-white/60 font-medium uppercase tracking-widest max-w-xs">
-            No momento não estamos aceitando pedidos pelo site. Por favor, volte mais tarde!
+          <p className="text-white/60 font-medium uppercase tracking-widest max-w-xs mb-4">
+            No momento não estamos aceitando pedidos pelo site.
           </p>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 max-w-sm w-full">
+            <p className="text-[10px] font-black text-gold uppercase tracking-widest mb-1">Próxima Abertura</p>
+            <p className="text-xl font-bold text-white">{getNextOpeningTime()}</p>
+          </div>
           <div className="mt-8 flex gap-4">
-            <Button variant="outline" className="border-white/10 text-white" onClick={() => window.location.href = 'tel:22999999999'}>
+            <Button variant="outline" className="border-white/10 text-white" onClick={() => window.location.href = 'tel:22998487785'}>
               <Phone className="mr-2 h-4 w-4" /> Ligar para Loja
             </Button>
           </div>
@@ -1389,9 +1444,9 @@ export default function App() {
                       "uppercase text-[10px] font-black",
                       order.status === 'completed' ? "bg-green-500" : "bg-gold text-deep-black"
                     )}>
-                      {order.status === 'pending' ? 'Pendente' : 
-                       order.status === 'preparing' ? 'Preparando' :
-                       order.status === 'delivering' ? 'Em Entrega' :
+                      {order.status === 'received' ? 'Pendente' : 
+                       order.status === 'cooking' ? 'Preparando' :
+                       order.status === 'delivery' ? 'Em Entrega' :
                        order.status === 'completed' ? 'Concluído' : 'Cancelado'}
                     </Badge>
                   </div>
@@ -1403,15 +1458,15 @@ export default function App() {
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ 
-                            width: order.status === 'pending' ? '25%' : 
-                                   order.status === 'preparing' ? '50%' : 
-                                   order.status === 'delivering' ? '75%' : '100%' 
+                            width: order.status === 'received' ? '25%' : 
+                                   order.status === 'cooking' ? '50%' : 
+                                   order.status === 'delivery' ? '75%' : '100%' 
                           }}
                           className="absolute inset-y-0 left-0 bg-gold"
                         />
                       </div>
                       
-                      {order.status === 'delivering' && (
+                      {order.status === 'delivery' && (
                         <motion.div 
                           animate={{ x: [0, 20, 0] }}
                           transition={{ repeat: Infinity, duration: 2 }}
@@ -1663,16 +1718,16 @@ export default function App() {
                             className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">WhatsApp (Obrigatório)</Label>
-                          <Input 
-                            value={customerInfo.phone}
-                            onChange={e => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
-                            placeholder="(22) 99999-9999"
-                            required
-                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
-                          />
-                        </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">WhatsApp (Obrigatório)</Label>
+                            <Input 
+                              value={customerInfo.phone}
+                              onChange={e => setCustomerInfo(prev => ({ ...prev, phone: formatPhone(e.target.value) }))}
+                              placeholder="(22) 99999-9999"
+                              required
+                              className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                            />
+                          </div>
                       </div>
 
                       <div className="flex items-center gap-3 mt-8 mb-2">
@@ -1887,7 +1942,7 @@ export default function App() {
                     <Button 
                       className="w-full max-w-sm bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest h-16 rounded-2xl shadow-lg shadow-green-600/20 group mt-6"
                       onClick={() => {
-                        window.open(generateWhatsAppLink(lastOrderId || undefined, 'pizzaria'), '_blank');
+                        window.open(whatsappLink || generateWhatsAppLink(lastOrderId || undefined, 'pizzaria'), '_blank');
                       }}
                     >
                       ENVIAR PEDIDO PARA O WHATSAPP <MessageCircle className="ml-2 h-6 w-6 group-hover:scale-110 transition-transform" />
@@ -1919,7 +1974,9 @@ export default function App() {
                         <Button 
                           disabled={
                             !customerInfo.name || 
+                            customerInfo.name.length < 3 ||
                             !customerInfo.phone || 
+                            customerInfo.phone.replace(/\D/g, '').length !== 11 ||
                             (deliveryType === 'delivery' && (!customerInfo.street || !customerInfo.number || !customerInfo.neighborhood)) ||
                             (customerInfo.needChange && (!customerInfo.changeFor || parseFloat(customerInfo.changeFor) < cartTotal))
                           }
