@@ -58,8 +58,6 @@ import { auth, db } from './firebase';
 import AdminDashboardComponent from './components/AdminDashboard';
 import { 
   onAuthStateChanged, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -550,15 +548,6 @@ export default function App() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      toast.success('Login realizado com sucesso!');
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
   const generatePixPayload = (amount: number) => {
     const key = "22998487785";
     const merchantName = "OURO PRETO";
@@ -1091,7 +1080,7 @@ export default function App() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar sabor..."
-                  className="bg-white/5 border-white/10 h-12 pl-12 rounded-full focus:border-gold/50 text-sm"
+                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 pl-12 rounded-full focus:border-gold/50 text-sm"
                 />
               </div>
             </div>
@@ -1362,7 +1351,7 @@ export default function App() {
                   required
                   value={authForm.name}
                   onChange={e => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="bg-white/5 border-white/10"
+                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
                 />
               </div>
             )}
@@ -1373,7 +1362,7 @@ export default function App() {
                 required
                 value={authForm.email}
                 onChange={e => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
-                className="bg-white/5 border-white/10"
+                className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
               />
             </div>
             {authMode !== 'forgot' && (
@@ -1384,7 +1373,7 @@ export default function App() {
                   required
                   value={authForm.password}
                   onChange={e => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
-                  className="bg-white/5 border-white/10"
+                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
                 />
               </div>
             )}
@@ -1392,18 +1381,6 @@ export default function App() {
             <Button type="submit" className="w-full bg-gold text-deep-black font-black uppercase tracking-widest h-12">
               {authMode === 'login' ? 'ENTRAR' : authMode === 'register' ? 'CADASTRAR' : 'ENVIAR E-MAIL'}
             </Button>
-
-            {authMode === 'login' && (
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleGoogleLogin}
-                className="w-full border-white/10 hover:bg-white/5 text-white h-12 flex items-center gap-2"
-              >
-                <img src="https://www.google.com/favicon.ico" className="h-4 w-4" alt="Google" />
-                ENTRAR COM GOOGLE
-              </Button>
-            )}
           </form>
 
           <div className="flex flex-col gap-2 mt-4 text-center">
@@ -1438,7 +1415,9 @@ export default function App() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Pedido #{order.id?.slice(-6).toUpperCase()}</p>
-                      <p className="text-xs text-white/60">{order.createdAt?.toDate().toLocaleDateString('pt-BR')}</p>
+                      <p className="text-xs text-white/60">
+                        {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}
+                      </p>
                     </div>
                     <Badge className={cn(
                       "uppercase text-[10px] font-black",
@@ -1715,7 +1694,7 @@ export default function App() {
                             value={customerInfo.name}
                             onChange={e => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
                             placeholder="Como podemos te chamar?"
-                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                            className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
                           />
                         </div>
                           <div className="space-y-2">
@@ -1725,7 +1704,7 @@ export default function App() {
                               onChange={e => setCustomerInfo(prev => ({ ...prev, phone: formatPhone(e.target.value) }))}
                               placeholder="(22) 99999-9999"
                               required
-                              className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
                             />
                           </div>
                       </div>
@@ -1752,7 +1731,7 @@ export default function App() {
                               value={customerInfo.street}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, street: e.target.value }))}
                               placeholder="Nome da rua"
-                              className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
                             />
                           </div>
                           <div className="col-span-4 space-y-2">
@@ -1761,7 +1740,7 @@ export default function App() {
                               value={customerInfo.number}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value }))}
                               placeholder="Nº"
-                              className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
                             />
                           </div>
                           <div className="col-span-8 space-y-2">
@@ -1769,7 +1748,7 @@ export default function App() {
                             <select 
                               value={customerInfo.neighborhood}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, neighborhood: e.target.value }))}
-                              className="w-full bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 text-white appearance-none cursor-pointer"
+                              className="w-full bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 appearance-none cursor-pointer"
                             >
                               <option value="" disabled className="bg-deep-black">Selecione o bairro</option>
                               {DELIVERY_FEES.map(n => (
@@ -1785,7 +1764,7 @@ export default function App() {
                               value={customerInfo.complement}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, complement: e.target.value }))}
                               placeholder="Apto, bloco, próximo a..."
-                              className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
                             />
                           </div>
                         </div>
@@ -1798,7 +1777,7 @@ export default function App() {
                             value={customerInfo.observations}
                             onChange={e => setCustomerInfo(prev => ({ ...prev, observations: e.target.value }))}
                             placeholder="Ex: Sem cebola, etc..."
-                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-gold/50 transition-all"
+                            className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
                           />
                         </div>
                       </div>
@@ -1830,7 +1809,7 @@ export default function App() {
                               value={customerInfo.changeFor}
                               onChange={(e) => setCustomerInfo(prev => ({ ...prev, changeFor: e.target.value }))}
                               className={cn(
-                                "bg-white/5 border-white/10 h-10 text-sm focus:border-gold/50",
+                                "bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-10 text-sm focus:border-gold/50",
                                 parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
                               )}
                             />

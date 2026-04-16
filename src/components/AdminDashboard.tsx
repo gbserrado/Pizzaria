@@ -18,7 +18,9 @@ import {
   MapPin,
   CreditCard,
   QrCode,
-  Wallet
+  Wallet,
+  Utensils,
+  ExternalLink
 } from 'lucide-react';
 import { db } from '../firebase';
 import { 
@@ -32,11 +34,6 @@ import {
   getDoc,
   increment
 } from 'firebase/firestore';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider 
-} from 'firebase/auth';
-import { auth } from '../firebase';
 import { Order, OrderStatus, PIZZAS, Pizza, StoreConfig } from '../types';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -47,7 +44,7 @@ import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const ADMIN_PASSWORD = 'admin'; // Simple password as requested
+const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
 
   const OrderCard: React.FC<{ order: Order, onUpdateStatus: (id: string, status: OrderStatus, phone?: string) => void | Promise<void> }> = ({ order, onUpdateStatus }) => {
     const [isPanic, setIsPanic] = useState(false);
@@ -59,7 +56,20 @@ const ADMIN_PASSWORD = 'admin'; // Simple password as requested
       }
 
       const checkPanic = () => {
-        const orderTime = order.createdAt?.toDate().getTime() || 0;
+        let orderTime = 0;
+        try {
+          if (typeof order.createdAt?.toDate === 'function') {
+            orderTime = order.createdAt.toDate().getTime();
+          } else if (order.createdAt?.seconds) {
+            orderTime = order.createdAt.seconds * 1000;
+          } else {
+            orderTime = new Date(order.createdAt).getTime();
+          }
+        } catch (e) {
+          orderTime = Date.now();
+        }
+        orderTime = orderTime || Date.now();
+        
         const diffMinutes = (Date.now() - orderTime) / (1000 * 60);
         setIsPanic(diffMinutes > 3);
       };
@@ -88,26 +98,36 @@ const ADMIN_PASSWORD = 'admin'; // Simple password as requested
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-white/60 text-xs">
-            <MapPin className="h-3 w-3" />
-            <span>{order.address.neighborhood}, {order.address.street} {order.address.number}</span>
-          </div>
+          {order.address && (
+            <div className="flex items-center gap-2 text-white/60 text-xs">
+              <MapPin className="h-3 w-3" />
+              <span>{order.address.neighborhood}, {order.address.street} {order.address.number}</span>
+            </div>
+          )}
+          {!order.address && (
+            <div className="flex items-center gap-2 text-white/60 text-xs">
+              <MapPin className="h-3 w-3" />
+              <span>Retirada no Local</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-white/60 text-xs">
             <Phone className="h-3 w-3" />
-            <span>{order.phone}</span>
+            <span>{order.phone || 'Sem telefone'}</span>
           </div>
         </div>
 
         <div className="bg-black/20 rounded-xl p-3 space-y-2">
-          {order.items.map((item, idx) => (
+          {(order.items || []).map((item, idx) => {
+            if (!item) return null;
+            return (
             <div key={idx} className="flex justify-between text-xs">
-              <span className="font-bold text-white/80">{item.quantity}x {item.pizza.name} {item.size && `(${item.size})`}</span>
-              <span className="text-gold font-black">R$ {item.totalPrice.toFixed(2)}</span>
+              <span className="font-bold text-white/80">{item.quantity || 1}x {item.pizza?.name || 'Pizza'} {item.size && `(${item.size})`}</span>
+              <span className="text-gold font-black">R$ {(item.totalPrice || 0).toFixed(2)}</span>
             </div>
-          ))}
+          )})}
           <div className="pt-2 border-t border-white/5 flex justify-between items-center">
             <span className="text-[10px] font-black uppercase text-white/40">Total</span>
-            <span className="text-lg font-black text-gold">R$ {order.total.toFixed(2)}</span>
+            <span className="text-lg font-black text-gold">R$ {(order.total || 0).toFixed(2)}</span>
           </div>
         </div>
 
@@ -117,8 +137,8 @@ const ADMIN_PASSWORD = 'admin'; // Simple password as requested
             size="sm"
             className="border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase"
             onClick={() => {
-              const msg = `Olá ${order.customerName}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
-              window.open(`https://wa.me/55${order.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+              const msg = `Olá ${order.customerName || ''}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
+              window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
           >
             <MessageCircle className="h-3 w-3 mr-2 text-green-500" />
@@ -227,24 +247,9 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
-      toast.success('Senha correta! Verificando permissões do Google...');
+      toast.success('Acesso concedido!');
     } else {
       toast.error('Senha incorreta!');
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      if (auth.currentUser?.email === 'Gabriel06nf@gmail.com') {
-        setIsAuthenticated(true);
-        toast.success('Acesso concedido!');
-      } else {
-        toast.error('Este e-mail não tem permissão de administrador.');
-      }
-    } catch (error) {
-      toast.error('Erro ao fazer login com Google');
     }
   };
 
@@ -308,7 +313,7 @@ export default function AdminDashboard() {
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-white/5 border-white/10 text-white h-12"
+                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12"
                   placeholder="Digite a senha..."
                   autoFocus
                 />
@@ -316,24 +321,13 @@ export default function AdminDashboard() {
               <Button type="submit" className="w-full bg-gold hover:bg-gold-dark text-deep-black font-black h-12 uppercase tracking-widest">
                 Entrar no Sistema
               </Button>
-              
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-graphite px-2 text-white/40">Ou use o Google</span>
-                </div>
-              </div>
-
               <Button 
-                type="button"
-                variant="outline"
-                onClick={handleGoogleLogin}
+                type="button" 
+                variant="outline" 
+                onClick={() => window.location.href = '/'}
                 className="w-full border-white/10 hover:bg-white/5 text-white h-12 font-bold"
               >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5 mr-2" alt="Google" />
-                Login com Google (Admin)
+                Voltar ao Site
               </Button>
             </form>
           </CardContent>
@@ -465,12 +459,22 @@ export default function AdminDashboard() {
           </button>
         </nav>
 
-        <button 
-          onClick={() => setIsAuthenticated(false)}
-          className="mt-auto p-3 rounded-xl text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-all"
-        >
-          <LogOut className="h-6 w-6" />
-        </button>
+        <div className="mt-auto flex flex-col gap-4">
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="p-3 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-all"
+            title="Voltar ao Site"
+          >
+            <ExternalLink className="h-6 w-6" />
+          </button>
+          <button 
+            onClick={() => setIsAuthenticated(false)}
+            className="p-3 rounded-xl text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-all"
+            title="Sair"
+          >
+            <LogOut className="h-6 w-6" />
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -560,22 +564,24 @@ export default function AdminDashboard() {
                     <p className="text-sm font-bold uppercase">{order.customerName}</p>
                   </div>
                   <div className="p-6 space-y-6">
-                    {order.items.map((item, idx) => (
+                    {(order.items || []).map((item, idx) => {
+                      if (!item) return null;
+                      return (
                       <div key={idx} className="space-y-2 border-b border-white/10 pb-4 last:border-0 last:pb-0">
                         <div className="flex items-start gap-4">
-                          <span className="text-4xl font-black text-gold">{item.quantity}x</span>
+                          <span className="text-4xl font-black text-gold">{item.quantity || 1}x</span>
                           <div>
                             <h3 className="text-2xl font-black uppercase leading-tight">
-                              {item.pizza2 ? `1/2 ${item.pizza.name} + 1/2 ${item.pizza2.name}` : item.pizza.name}
+                              {item.pizza2 ? `1/2 ${item.pizza?.name || 'Pizza'} + 1/2 ${item.pizza2?.name || 'Pizza'}` : item.pizza?.name || 'Pizza'}
                             </h3>
                             {item.size && <p className="text-xl text-white/60 font-bold uppercase mt-1">Tamanho: {item.size}</p>}
                           </div>
                         </div>
-                        {item.extras.length > 0 && (
+                        {(item.extras || []).length > 0 && (
                           <div className="bg-red-500/20 border border-red-500/50 p-3 rounded-xl mt-4">
                             <p className="text-sm font-black text-red-400 uppercase mb-1">Adicionais:</p>
                             <ul className="list-disc list-inside text-lg font-bold text-white">
-                              {item.extras.map((extra, i) => <li key={i}>{extra}</li>)}
+                              {(item.extras || []).map((extra, i) => <li key={i}>{extra}</li>)}
                             </ul>
                           </div>
                         )}
@@ -586,7 +592,7 @@ export default function AdminDashboard() {
                           </div>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                   <div className="p-4 bg-black/40 border-t border-white/10">
                     <Button 
