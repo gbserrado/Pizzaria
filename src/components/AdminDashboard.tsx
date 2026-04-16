@@ -22,7 +22,11 @@ import {
   Utensils,
   ExternalLink
 } from 'lucide-react';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
+import { 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
+} from 'firebase/auth';
 import { 
   collection, 
   query, 
@@ -190,6 +194,16 @@ export default function AdminDashboard() {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (user && user.email === 'Gabriel06nf@gmail.com') {
+        // If Gabriel is logged in, we still want the password for the local session
+        // but we don't need to sign in into another account.
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
 
     // Listen to orders
@@ -243,11 +257,49 @@ export default function AdminDashboard() {
     };
   }, [isAuthenticated, orders]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      toast.success('Acesso concedido!');
+      // Check if current user is already an admin
+      const currentUser = auth.currentUser;
+      if (currentUser && currentUser.email === 'Gabriel06nf@gmail.com') {
+        setIsAuthenticated(true);
+        toast.success('Acesso concedido (Admin Gabriel)!');
+        return;
+      }
+
+      try {
+        await signInWithEmailAndPassword(auth, "admin@ouropreto.com", ADMIN_PASSWORD);
+        setIsAuthenticated(true);
+        toast.success('Acesso concedido!');
+      } catch (error: any) {
+        console.error('Firebase Auth Error:', error.code, error.message);
+        
+        if (error.code === 'auth/operation-not-allowed') {
+          toast.error('Erro: Provedor de E-mail/Senha desativado no Firebase. Ative-o no console.');
+          // As a fallback for development, if password is correct, we might allow it
+          // BUT Firestore calls will fail if not authenticated as admin in rules
+          setIsAuthenticated(true);
+          return;
+        }
+
+        if (error.code === 'auth/user-not-found' || error.message.includes('user-not-found') || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+          try {
+            await createUserWithEmailAndPassword(auth, "admin@ouropreto.com", ADMIN_PASSWORD);
+            setIsAuthenticated(true);
+            toast.success('Acesso concedido (Novo Admin)!');
+          } catch (createError: any) {
+            console.error('Firebase Create Error:', createError.code, createError.message);
+            if (createError.code === 'auth/email-already-in-use') {
+               toast.error('Senha incorreta para o usuário admin do banco de dados.');
+            } else {
+               toast.error(`Erro de permissão: ${createError.message}`);
+            }
+          }
+        } else {
+          toast.error(`Erro de banco de dados: ${error.code || 'Desconhecido'}`);
+        }
+      }
     } else {
       toast.error('Senha incorreta!');
     }
@@ -313,7 +365,7 @@ export default function AdminDashboard() {
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12"
+                  className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 placeholder:opacity-100"
                   placeholder="Digite a senha..."
                   autoFocus
                 />

@@ -181,6 +181,7 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'details' | 'payment' | 'confirmation'>('cart');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [whatsappLink, setWhatsappLink] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState('Destaques');
@@ -453,6 +454,7 @@ export default function App() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const orderData = {
         userId: user.uid,
@@ -462,15 +464,15 @@ export default function App() {
           name: item.pizza.name,
           name2: item.pizza2?.name || null,
           size: item.size || null,
-          extras: item.extras,
-          quantity: item.quantity,
-          price: item.totalPrice
+          extras: item.extras || [],
+          quantity: Number(item.quantity) || 1,
+          price: Number(item.totalPrice) || 0
         })),
-        total: cartTotal,
+        total: Number(cartTotal) || 0,
         status: 'received',
         deliveryType,
         paymentMethod: customerInfo.paymentMethod,
-        deliveryFee,
+        deliveryFee: Number(deliveryFee) || 0,
         address: {
           ...customerInfo,
           complement: customerInfo.complement || null,
@@ -479,7 +481,7 @@ export default function App() {
         },
         createdAt: serverTimestamp(),
         couponCode: appliedCoupon?.code || null,
-        discount: appliedCoupon?.discount || 0
+        discount: Number(appliedCoupon?.discount) || 0
       };
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
@@ -496,6 +498,8 @@ export default function App() {
       const firestoreError = handleFirestoreError(error, OperationType.CREATE, 'orders');
       console.error('Erro ao finalizar pedido:', firestoreError);
       toast.error('Erro ao processar pedido. Verifique os dados e tente novamente.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -600,7 +604,7 @@ export default function App() {
       let kitchenMsg = `*👨‍🍳 NOVO PEDIDO PARA COZINHA - #${shortId}*\n\n`;
       cart.forEach((item, index) => {
         kitchenMsg += `${index + 1}. ${item.quantity}x *${item.pizza.name}* ${item.size ? `(${item.size})` : ''}\n`;
-        if (item.extras.length > 0) {
+        if (item.extras && item.extras.length > 0) {
           kitchenMsg += `   + Adicionais: ${item.extras.join(', ')}\n`;
         }
       });
@@ -618,7 +622,7 @@ export default function App() {
         : `${item.pizza.name}`;
         
       message += `${item.quantity}x *${pizzaName}* ${item.size ? `(${item.size})` : ''}\n`;
-      if (item.extras.length > 0) {
+      if (item.extras && item.extras.length > 0) {
         message += `   + ${item.extras.join(', ')}\n`;
       }
     });
@@ -1080,7 +1084,7 @@ export default function App() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar sabor..."
-                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 pl-12 rounded-full focus:border-gold/50 text-sm"
+                  className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 pl-12 rounded-full focus:border-gold/50 text-sm placeholder:opacity-100"
                 />
               </div>
             </div>
@@ -1351,7 +1355,7 @@ export default function App() {
                   required
                   value={authForm.name}
                   onChange={e => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
+                  className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 placeholder:opacity-100"
                 />
               </div>
             )}
@@ -1362,7 +1366,7 @@ export default function App() {
                 required
                 value={authForm.email}
                 onChange={e => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
-                className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
+                className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 placeholder:opacity-100"
               />
             </div>
             {authMode !== 'forgot' && (
@@ -1373,7 +1377,7 @@ export default function App() {
                   required
                   value={authForm.password}
                   onChange={e => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
-                  className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500"
+                  className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 placeholder:opacity-100"
                 />
               </div>
             )}
@@ -1694,7 +1698,7 @@ export default function App() {
                             value={customerInfo.name}
                             onChange={e => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
                             placeholder="Como podemos te chamar?"
-                            className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
+                            className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                           />
                         </div>
                           <div className="space-y-2">
@@ -1704,7 +1708,7 @@ export default function App() {
                               onChange={e => setCustomerInfo(prev => ({ ...prev, phone: formatPhone(e.target.value) }))}
                               placeholder="(22) 99999-9999"
                               required
-                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
                       </div>
@@ -1731,7 +1735,7 @@ export default function App() {
                               value={customerInfo.street}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, street: e.target.value }))}
                               placeholder="Nome da rua"
-                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
                           <div className="col-span-4 space-y-2">
@@ -1740,7 +1744,7 @@ export default function App() {
                               value={customerInfo.number}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value }))}
                               placeholder="Nº"
-                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
                           <div className="col-span-8 space-y-2">
@@ -1748,7 +1752,7 @@ export default function App() {
                             <select 
                               value={customerInfo.neighborhood}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, neighborhood: e.target.value }))}
-                              className="w-full bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 appearance-none cursor-pointer"
+                              className="w-full bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 appearance-none cursor-pointer"
                             >
                               <option value="" disabled className="bg-deep-black">Selecione o bairro</option>
                               {DELIVERY_FEES.map(n => (
@@ -1764,7 +1768,7 @@ export default function App() {
                               value={customerInfo.complement}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, complement: e.target.value }))}
                               placeholder="Apto, bloco, próximo a..."
-                              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
+                              className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
                         </div>
@@ -1777,7 +1781,7 @@ export default function App() {
                             value={customerInfo.observations}
                             onChange={e => setCustomerInfo(prev => ({ ...prev, observations: e.target.value }))}
                             placeholder="Ex: Sem cebola, etc..."
-                            className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all"
+                            className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                           />
                         </div>
                       </div>
@@ -1809,7 +1813,7 @@ export default function App() {
                               value={customerInfo.changeFor}
                               onChange={(e) => setCustomerInfo(prev => ({ ...prev, changeFor: e.target.value }))}
                               className={cn(
-                                "bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 h-10 text-sm focus:border-gold/50",
+                                "bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-10 text-sm focus:border-gold/50 placeholder:opacity-100",
                                 parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
                               )}
                             />
@@ -1952,6 +1956,7 @@ export default function App() {
                       {checkoutStep === 'details' && (
                         <Button 
                           disabled={
+                            isSubmitting ||
                             !customerInfo.name || 
                             customerInfo.name.length < 3 ||
                             !customerInfo.phone || 
@@ -1962,7 +1967,11 @@ export default function App() {
                           onClick={handleFinalizeOrder}
                           className="bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-green-600/20 group disabled:opacity-50"
                         >
-                          FINALIZAR <MessageCircle className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                          {isSubmitting ? 'PROCESSANDO...' : (
+                            <>
+                              FINALIZAR <MessageCircle className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                            </>
+                          )}
                         </Button>
                       )}
                     </div>
