@@ -210,7 +210,30 @@ export default function App() {
   const [currentOrderStatus, setCurrentOrderStatus] = useState<OrderStatus>('received');
   const successAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Listen to store config and menu
+  // Coupon State
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
+  const [deliveryFee, setDeliveryFee] = useState(0);
+
+  const displayPizzas = useMemo(() => {
+    return PIZZAS.map(p => ({
+      ...p,
+      available: menuStatus[p.id] !== false
+    }));
+  }, [menuStatus]);
+
+  // Handle URL changes for admin
+  useEffect(() => {
+    const handlePathChange = () => {
+      setIsAdminView(window.location.pathname === '/admin');
+    };
+    window.addEventListener('popstate', handlePathChange);
+    return () => window.removeEventListener('popstate', handlePathChange);
+  }, []);
+
+  // Listen to store config and menu - Shared
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, 'config', 'store'), (snapshot) => {
       if (snapshot.exists()) setStoreConfig(snapshot.data() as StoreConfig);
@@ -229,6 +252,45 @@ export default function App() {
       unsubMenu();
     };
   }, []);
+
+  // Auth and Personal Orders listener
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user) {
+        setIsAuthModalOpen(false);
+      } else {
+        setOrders([]);
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user || isAdminView) return;
+
+    const q = query(
+      collection(db, 'orders'), 
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const unsubOrders = onSnapshot(q, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      setOrders(ordersData);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
+
+    return () => unsubOrders();
+  }, [user, isAdminView]);
+
+  useEffect(() => {
+    if (deliveryType === 'delivery' && customerInfo.neighborhood) {
+      const fee = DELIVERY_FEES.find(f => f.name === customerInfo.neighborhood)?.fee || 0;
+      setDeliveryFee(fee);
+    } else {
+      setDeliveryFee(0);
+    }
+  }, [deliveryType, customerInfo.neighborhood]);
 
   // Listen to current order status when confirmed
   useEffect(() => {
@@ -258,75 +320,6 @@ export default function App() {
       return () => unsubLoyalty();
     }
   }, [customerInfo.phone]);
-
-  // Handle URL changes for admin
-  useEffect(() => {
-    const handlePathChange = () => {
-      setIsAdminView(window.location.pathname === '/admin');
-    };
-    window.addEventListener('popstate', handlePathChange);
-    return () => window.removeEventListener('popstate', handlePathChange);
-  }, []);
-
-  const navigateToAdmin = () => {
-    window.history.pushState({}, '', '/admin');
-    setIsAdminView(true);
-  };
-
-  const navigateToHome = () => {
-    window.history.pushState({}, '', '/');
-    setIsAdminView(false);
-  };
-
-  // if (isAdminView) {
-  //   return <AdminDashboard />;
-  // }
-
-  const displayPizzas = useMemo(() => {
-    return PIZZAS.map(p => ({
-      ...p,
-      available: menuStatus[p.id] !== false
-    }));
-  }, [menuStatus]);
-
-  // Coupon State
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
-
-  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
-  const [deliveryFee, setDeliveryFee] = useState(0);
-
-  useEffect(() => {
-    if (deliveryType === 'delivery' && customerInfo.neighborhood) {
-      const fee = DELIVERY_FEES.find(f => f.name === customerInfo.neighborhood)?.fee || 0;
-      setDeliveryFee(fee);
-    } else {
-      setDeliveryFee(0);
-    }
-  }, [deliveryType, customerInfo.neighborhood]);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) {
-        setIsAuthModalOpen(false);
-        // Load orders
-        const q = query(
-          collection(db, 'orders'), 
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const unsubOrders = onSnapshot(q, (snapshot) => {
-          const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-          setOrders(ordersData);
-        }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
-        return () => unsubOrders();
-      } else {
-        setOrders([]);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -919,7 +912,10 @@ export default function App() {
       )}
 
       {isAdminView ? (
-        <AdminDashboardComponent />
+        <AdminDashboardComponent 
+          storeConfig={storeConfig} 
+          menuStatus={menuStatus} 
+        />
       ) : (
         <>
           {/* Header */}

@@ -121,17 +121,80 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
         </div>
 
         <div className="bg-black/20 rounded-xl p-3 space-y-2">
-          {(order.items || []).map((item, idx) => {
+          {(order.items || []).map((item: any, idx) => {
             if (!item) return null;
+            const itemPrice = item.price || item.totalPrice || 0;
+            const quantity = item.quantity || 1;
+            const unitPrice = itemPrice / quantity;
+            
             return (
-            <div key={idx} className="flex justify-between text-xs">
-              <span className="font-bold text-white/80">{item.quantity || 1}x {item.pizza?.name || 'Pizza'} {item.size && `(${item.size})`}</span>
-              <span className="text-gold font-black">R$ {(item.totalPrice || 0).toFixed(2)}</span>
+              <div key={idx} className="flex justify-between items-start text-xs py-2 first:pt-0 last:pb-0 border-b border-white/5 last:border-0">
+                <div className="flex flex-col gap-1 w-full mr-4">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center bg-gold text-deep-black font-black w-5 h-5 rounded-md shrink-0 text-[10px]">
+                      {quantity}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-black text-white uppercase tracking-tight leading-tight">
+                        {item.name2 ? (
+                          <span className="flex flex-col">
+                            <span className="text-gold tracking-wide text-[9px]">MEIA A MEIA:</span>
+                            <span>{item.name} + {item.name2}</span>
+                          </span>
+                        ) : (
+                          item.name || item.pizza?.name || 'Pizza'
+                        )}
+                      </span>
+                      {item.size && (
+                        <span className="text-[10px] font-bold text-white/50 uppercase italic group-hover:text-gold transition-colors">
+                          Tamanho: {item.size}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pl-7 space-y-1">
+                    {item.extras && item.extras.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {item.extras.map((extra: string, eIdx: number) => (
+                          <span key={eIdx} className="bg-white/10 text-white/60 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
+                            + {extra}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="text-[9px] text-white/30 font-medium flex items-center gap-2">
+                      <span className="bg-white/5 px-1 rounded uppercase tracking-tighter">Unitário: R$ {unitPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end shrink-0 pt-0.5">
+                  <span className="text-gold font-black text-sm">R$ {itemPrice.toFixed(2)}</span>
+                </div>
+              </div>
+            );
+          })}
+          
+          <div className="space-y-1 pt-2 border-t border-white/5">
+            {order.deliveryFee > 0 && (
+              <div className="flex justify-between text-[11px]">
+                <span className="text-white/60">Taxa de Entrega</span>
+                <span className="text-white/80 font-bold">R$ {order.deliveryFee.toFixed(2)}</span>
+              </div>
+            )}
+
+            {order.discount > 0 && (
+              <div className="flex justify-between text-[11px] text-red-400">
+                <span>Desconto ({order.couponCode})</span>
+                <span className="font-bold">- R$ {order.discount.toFixed(2)}</span>
+              </div>
+            )}
+
+            <div className="pt-1 flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase text-white/40">Total</span>
+              <span className="text-lg font-black text-gold">R$ {(order.total || 0).toFixed(2)}</span>
             </div>
-          )})}
-          <div className="pt-2 border-t border-white/5 flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-white/40">Total</span>
-            <span className="text-lg font-black text-gold">R$ {(order.total || 0).toFixed(2)}</span>
           </div>
         </div>
 
@@ -184,14 +247,33 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
   );
 };
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfig: StoreConfig, menuStatus: Record<string, boolean> }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [orders, setOrders] = useState<Order[]>([]);
-  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ lojaAberta: true });
-  const [menuStatus, setMenuStatus] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'menu' | 'settings'>('orders');
   const audioRef = useRef<HTMLAudioElement>(null);
+  const ordersRef = useRef<Order[]>([]);
+
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const initConfig = async () => {
+        try {
+          const configDoc = await getDoc(doc(db, 'config', 'store'));
+          if (!configDoc.exists()) {
+            await setDoc(doc(db, 'config', 'store'), { lojaAberta: true });
+          }
+        } catch (e) {
+          console.error("Initialization error:", e);
+        }
+      };
+      initConfig();
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((user) => {
@@ -214,7 +296,7 @@ export default function AdminDashboard() {
       // Check for new 'received' orders to play sound
       const hasNewReceived = newOrders.some(order => 
         order.status === 'received' && 
-        !orders.find(o => o.id === order.id)
+        !ordersRef.current.find(o => o.id === order.id)
       );
 
       if (hasNewReceived && audioRef.current) {
@@ -227,35 +309,10 @@ export default function AdminDashboard() {
       toast.error('Erro ao carregar pedidos. Verifique suas permissões.');
     });
 
-    // Listen to store config
-    const unsubscribeConfig = onSnapshot(doc(db, 'config', 'store'), (snapshot: any) => {
-      if (snapshot.exists()) {
-        setStoreConfig(snapshot.data() as StoreConfig);
-      } else {
-        // Initialize if not exists
-        setDoc(snapshot.ref, { lojaAberta: true });
-      }
-    }, (error) => {
-      console.error('Admin Config Error:', error);
-    });
-
-    // Listen to menu status
-    const unsubscribeMenu = onSnapshot(collection(db, 'menu'), (snapshot) => {
-      const status: Record<string, boolean> = {};
-      snapshot.docs.forEach(doc => {
-        status[doc.id] = doc.data().available;
-      });
-      setMenuStatus(status);
-    }, (error) => {
-      console.error('Admin Menu Error:', error);
-    });
-
     return () => {
       unsubscribeOrders();
-      unsubscribeConfig();
-      unsubscribeMenu();
     };
-  }, [isAuthenticated, orders]);
+  }, [isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -624,7 +681,12 @@ export default function AdminDashboard() {
                           <span className="text-4xl font-black text-gold">{item.quantity || 1}x</span>
                           <div>
                             <h3 className="text-2xl font-black uppercase leading-tight">
-                              {item.pizza2 ? `1/2 ${item.pizza?.name || 'Pizza'} + 1/2 ${item.pizza2?.name || 'Pizza'}` : item.pizza?.name || 'Pizza'}
+                              {item.name2 ? (
+                                <span className="flex flex-col">
+                                  <span className="text-deep-black bg-deep-black/10 px-1 rounded w-fit text-[12px] mb-1">MEIA A MEIA</span>
+                                  <span>{item.name} + {item.name2}</span>
+                                </span>
+                              ) : (item.name || item.pizza?.name || 'Pizza')}
                             </h3>
                             {item.size && <p className="text-xl text-white/60 font-bold uppercase mt-1">Tamanho: {item.size}</p>}
                           </div>
@@ -678,15 +740,24 @@ export default function AdminDashboard() {
                       />
                     </div>
                   </div>
-                  <CardHeader className="p-4">
+                  <CardHeader className="p-4 space-y-2">
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-sm font-black uppercase italic">{pizza.name}</CardTitle>
-                        <CardDescription className="text-[10px]">{pizza.category}</CardDescription>
+                        <CardTitle className="text-sm font-black uppercase italic leading-none">{pizza.name}</CardTitle>
+                        <CardDescription className="text-[10px] uppercase font-bold text-white/40">{pizza.category}</CardDescription>
                       </div>
-                      <Badge variant="outline" className={cn("text-[10px] font-black", menuStatus[pizza.id] !== false ? "text-green-500" : "text-red-500")}>
+                      <Badge variant="outline" className={cn("text-[9px] font-black tracking-tighter", menuStatus[pizza.id] !== false ? "text-green-500 border-green-500/30" : "text-red-500 border-red-500/30")}>
                         {menuStatus[pizza.id] !== false ? 'DISPONÍVEL' : 'ESGOTADO'}
                       </Badge>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-white/60 line-clamp-2 leading-tight">
+                        {pizza.description}
+                      </p>
+                      <p className="text-gold font-black text-sm">
+                        R$ {pizza.basePrice.toFixed(2)}
+                      </p>
                     </div>
                   </CardHeader>
                 </Card>
