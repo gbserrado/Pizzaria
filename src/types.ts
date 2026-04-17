@@ -428,7 +428,8 @@ export const PIZZAS: Pizza[] = [
 
 export const DELIVERY_FEES: { name: string; fee: number }[] = [
   { name: 'Conselheiro Paulino', fee: 5.00 },
-  { name: 'Chácara Paraíso', fee: 7.00 },
+  { name: 'Chácara do Paraíso antes Unimed', fee: 7.00 },
+  { name: 'Chácara do Paraíso após Unimed', fee: 10.00 },
   { name: 'Centro', fee: 10.00 },
   { name: 'Olaria', fee: 12.00 },
   { name: 'Prado', fee: 6.00 },

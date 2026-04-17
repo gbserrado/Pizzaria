@@ -328,6 +328,10 @@ export default function App() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  const activeOrder = useMemo(() => {
+    return orders.find(o => ['received', 'cooking', 'delivery'].includes(o.status));
+  }, [orders]);
+
   const cartTotal = useMemo(() => {
     const subtotal = cart.reduce((total, item) => total + item.totalPrice, 0);
     let total = subtotal;
@@ -644,9 +648,9 @@ export default function App() {
     }
 
     if (customerInfo.paymentMethod === 'pix_now') {
-      message += `\nJá realizei o pagamento via PIX e estou enviando o comprovante abaixo.`;
+      message += `\n*✅ PAGAMENTO VIA PIX:*\nEstou enviando o comprovante abaixo para agilizar e confirmar meu pedido!`;
     } else {
-      message += `\nQual a previsão de entrega?`;
+      message += `\n*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'card_delivery' ? 'Cartão na Entrega' : 'Dinheiro'}\nFavor confirmar o valor total e o tempo de espera para eu acertar o pagamento.`;
     }
 
     return `https://wa.me/${PIZZARIA_PHONE}?text=${encodeURIComponent(message)}`;
@@ -998,7 +1002,39 @@ export default function App() {
         </div>
       </header>
 
-      <main>
+      <main className="flex-1 bg-deep-black">
+        {/* Active Order Tracker - Only visible to non-admins with an active order */}
+        {!isAdminView && activeOrder && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            className="bg-gold border-b border-gold-dark/20 overflow-hidden relative z-[45]"
+          >
+            <div className="container px-4 py-2 flex items-center justify-between text-deep-black">
+              <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+                <div className="h-6 w-6 rounded-full bg-deep-black/10 flex items-center justify-center animate-bounce shrink-0">
+                  {activeOrder.status === 'received' ? <Clock className="h-3 w-3" /> : 
+                   activeOrder.status === 'cooking' ? <Utensils className="h-3 w-3" /> : <Truck className="h-3 w-3" />}
+                </div>
+                <div className="flex flex-col truncate">
+                  <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">Acompanhar Pedido #{activeOrder.id?.slice(-6).toUpperCase()}</span>
+                  <span className="text-xs font-black uppercase italic leading-none truncate">
+                    {activeOrder.status === 'received' ? '🔥 Pedido recebido!' : 
+                     activeOrder.status === 'cooking' ? '👨‍🍳 No forno!' : '🚀 Saiu para entrega!'}
+                  </span>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 px-3 rounded-full bg-deep-black/10 hover:bg-deep-black/20 text-deep-black text-[9px] font-black uppercase tracking-widest gap-1 shrink-0 ml-2"
+                onClick={() => setIsOrdersOpen(true)}
+              >
+                Detalhes <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
         {/* Hero Section */}
         <section className="relative h-[60vh] md:h-[70vh] flex items-center overflow-hidden">
           <div className="absolute inset-0 z-0">
@@ -1750,10 +1786,10 @@ export default function App() {
                               onChange={e => setCustomerInfo(prev => ({ ...prev, neighborhood: e.target.value }))}
                               className="w-full bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 appearance-none cursor-pointer"
                             >
-                              <option value="" disabled className="bg-deep-black">Selecione o bairro</option>
+                              <option value="" disabled className="bg-deep-black text-white/50">Selecione o bairro</option>
                               {DELIVERY_FEES.map(n => (
-                                <option key={n.name} value={n.name} className="bg-deep-black">
-                                  {n.name} (R$ {n.fee.toFixed(2)})
+                                <option key={n.name} value={n.name} className="bg-zinc-800 text-white">
+                                  {n.name}
                                 </option>
                               ))}
                             </select>
@@ -1872,28 +1908,38 @@ export default function App() {
                         className="absolute inset-0 rounded-full border-4 border-green-500/20"
                       />
                     </div>
-                    <div className="space-y-4">
-                      <h4 className="text-2xl font-black uppercase italic text-white">
+                    <div className="space-y-4 w-full">
+                      <h4 className="text-2xl font-black uppercase italic text-white leading-none">
                         {currentOrderStatus === 'received' ? 'Pedido Recebido!' : 
                          currentOrderStatus === 'cooking' ? '🍕 Sendo Preparado!' :
                          currentOrderStatus === 'delivery' ? '🚀 Saiu para Entrega!' :
                          currentOrderStatus === 'completed' ? '✅ Pedido Finalizado!' : 'Pedido Cancelado'}
                       </h4>
+                      
+                      {/* Tracking Progress In Confirmation */}
+                      <div className="space-y-2 mt-4 px-6">
+                        <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ 
+                              width: currentOrderStatus === 'received' ? '25%' : 
+                                     currentOrderStatus === 'cooking' ? '50%' : 
+                                     currentOrderStatus === 'delivery' ? '75%' : '100%' 
+                            }}
+                            className="absolute inset-y-0 left-0 bg-gold"
+                          />
+                        </div>
+                        <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-white/30">
+                          <span className={cn(currentOrderStatus === 'received' && "text-gold")}>Recebido</span>
+                          <span className={cn(currentOrderStatus === 'cooking' && "text-gold")}>Na Cozinha</span>
+                          <span className={cn(currentOrderStatus === 'delivery' && "text-gold")}>Entrega</span>
+                          <span className={cn(currentOrderStatus === 'completed' && "text-gold")}>Finalizado</span>
+                        </div>
+                      </div>
+
                       <p className="text-sm text-white/80 max-w-xs mx-auto">
                         Obrigado, <span className="text-gold font-bold">{customerInfo.name}</span>! Seu pedido <span className="font-mono bg-white/10 px-2 py-1 rounded">#{lastOrderId?.slice(-6).toUpperCase() || '---'}</span> foi recebido.
                       </p>
-                      <Badge variant="outline" className={cn(
-                        "text-xs py-1 px-3 uppercase font-black tracking-widest",
-                        currentOrderStatus === 'received' ? "border-gold/20 text-gold animate-pulse" :
-                        currentOrderStatus === 'cooking' ? "border-blue-500/20 text-blue-500" :
-                        currentOrderStatus === 'delivery' ? "border-green-500/20 text-green-500" :
-                        "border-white/20 text-white/40"
-                      )}>
-                        {currentOrderStatus === 'received' ? 'AGUARDANDO CONFIRMAÇÃO' : 
-                         currentOrderStatus === 'cooking' ? 'NA COZINHA' :
-                         currentOrderStatus === 'delivery' ? 'A CAMINHO' :
-                         currentOrderStatus === 'completed' ? 'ENTREGUE' : 'CANCELADO'}
-                      </Badge>
                     </div>
 
                     {/* Loyalty Progress */}
@@ -1914,8 +1960,16 @@ export default function App() {
                       </p>
                     </div>
                     
-                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-2xl border border-white/10 text-sm text-white/60">
-                      Clique no botão abaixo para nos enviar os detalhes pelo WhatsApp e confirmarmos seu tempo de espera.
+                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-2xl border border-white/10 text-sm text-white/80 space-y-3">
+                      <p className="font-bold text-gold uppercase text-[10px] tracking-widest text-center">Próximo Passo:</p>
+                      <p className="text-center">
+                        Para finalizar seu pedido, clique no botão abaixo para nos enviar os detalhes e <span className="text-white font-black underline decoration-gold/50">acertar o pagamento via WhatsApp</span>. 
+                      </p>
+                      {customerInfo.paymentMethod === 'pix_now' && (
+                        <p className="text-[11px] text-white/60 bg-white/5 p-2 rounded-lg text-center italic">
+                          💡 Não esqueça de anexar o comprovante do PIX!
+                        </p>
+                      )}
                     </div>
                     
                     <Button 
@@ -1936,6 +1990,11 @@ export default function App() {
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-end">
                       <div className="space-y-1">
+                        {deliveryFee > 0 && (
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-1">
+                            Entrega: R$ {deliveryFee.toFixed(2)}
+                          </p>
+                        )}
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Total do Pedido</p>
                         <p className="text-4xl font-black text-gold tracking-tighter">R$ {cartTotal.toFixed(2)}</p>
                       </div>
