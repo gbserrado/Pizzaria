@@ -17,6 +17,7 @@ import {
   Star,
   MessageCircle,
   ChevronRight,
+  ChevronDown,
   Info,
   ShoppingCart,
   X,
@@ -180,7 +181,9 @@ export default function App() {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState<'cart' | 'details' | 'payment' | 'confirmation'>('cart');
+  const [checkoutStep, setCheckoutStep] = useState<'cart' | 'address' | 'payment' | 'summary' | 'confirmation'>('cart');
+  const [isNeighborhoodOpen, setIsNeighborhoodOpen] = useState(false);
+  const [isTemporarilyOpen, setIsTemporarilyOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [whatsappLink, setWhatsappLink] = useState<string>('');
@@ -332,14 +335,17 @@ export default function App() {
     return orders.find(o => ['received', 'cooking', 'delivery'].includes(o.status));
   }, [orders]);
 
+  const cartSubtotal = useMemo(() => {
+    return cart.reduce((total, item) => total + item.totalPrice, 0);
+  }, [cart]);
+
   const cartTotal = useMemo(() => {
-    const subtotal = cart.reduce((total, item) => total + item.totalPrice, 0);
-    let total = subtotal;
+    let total = cartSubtotal;
     if (appliedCoupon) {
-      total = subtotal * (1 - appliedCoupon.discount / 100);
+      total = cartSubtotal * (1 - appliedCoupon.discount / 100);
     }
     return total + deliveryFee;
-  }, [cart, appliedCoupon, deliveryFee]);
+  }, [cartSubtotal, appliedCoupon, deliveryFee]);
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -624,7 +630,15 @@ export default function App() {
       }
     });
 
-    message += `\n*💰 VALOR TOTAL:* R$ ${cartTotal.toFixed(2)}\n`;
+      message += `\n*📦 SUBTOTAL:* R$ ${cartSubtotal.toFixed(2)}\n`;
+      if (deliveryFee > 0) {
+        message += `*🛵 TAXA DE ENTREGA:* R$ ${deliveryFee.toFixed(2)}\n`;
+      }
+      if (appliedCoupon) {
+        const discountAmount = cartSubtotal * (appliedCoupon.discount / 100);
+        message += `*🏷️ DESCONTO:* - R$ ${discountAmount.toFixed(2)}\n`;
+      }
+      message += `*💰 VALOR TOTAL:* R$ ${cartTotal.toFixed(2)}\n`;
     message += `*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'pix_now' ? 'PIX (Comprovante abaixo)' : customerInfo.paymentMethod === 'card_delivery' ? 'CARTÃO (Levar maquininha)' : 'DINHEIRO'}\n`;
 
     if (customerInfo.needChange) {
@@ -894,7 +908,7 @@ export default function App() {
       <audio ref={successAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" />
       <Toaster position="top-center" richColors />
 
-      {!storeConfig.lojaAberta && !isAdminView && (
+      {!storeConfig.lojaAberta && !isAdminView && !isTemporarilyOpen && (
         <div className="fixed inset-0 z-[100] bg-deep-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
           <div className="bg-gold/10 p-6 rounded-full mb-6 border border-gold/20">
             <Clock className="h-16 w-16 text-gold animate-pulse" />
@@ -907,9 +921,17 @@ export default function App() {
             <p className="text-[10px] font-black text-gold uppercase tracking-widest mb-1">Próxima Abertura</p>
             <p className="text-xl font-bold text-white">{getNextOpeningTime()}</p>
           </div>
-          <div className="mt-8 flex gap-4">
-            <Button variant="ghost" className="border border-white/10 text-white bg-white/5 hover:bg-white/10" onClick={() => window.location.href = 'tel:22998487785'}>
+          <div className="mt-8 flex flex-col gap-4 w-full max-w-sm">
+            <Button variant="ghost" className="border border-white/10 text-white bg-white/5 hover:bg-white/10 h-12 rounded-xl" onClick={() => window.location.href = 'tel:22998487785'}>
               <Phone className="mr-2 h-4 w-4" /> Ligar para Loja
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              className="border-gold/30 text-gold hover:bg-gold/10 h-12 rounded-xl font-black uppercase tracking-widest"
+              onClick={() => setIsTemporarilyOpen(true)}
+            >
+              Abrir Provisoriamente (Modo Teste)
             </Button>
           </div>
         </div>
@@ -1713,56 +1735,106 @@ export default function App() {
                   </div>
                 )}
 
-                {checkoutStep === 'details' && (
+                {checkoutStep === 'address' && (
                   <div className="space-y-8">
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
                           <User className="h-4 w-4 text-gold" />
                         </div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Informações Pessoais</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Identificação</h4>
                       </div>
                       
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nome Completo</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Seu Nome</Label>
                           <Input 
                             value={customerInfo.name}
                             onChange={e => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="Como podemos te chamar?"
+                            placeholder="Ex: João Silva"
                             className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                           />
                         </div>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">WhatsApp (Obrigatório)</Label>
-                            <Input 
-                              value={customerInfo.phone}
-                              onChange={e => setCustomerInfo(prev => ({ ...prev, phone: formatPhone(e.target.value) }))}
-                              placeholder="(22) 99999-9999"
-                              required
-                              className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">WhatsApp</Label>
+                          <Input 
+                            value={customerInfo.phone}
+                            onChange={e => setCustomerInfo(prev => ({ ...prev, phone: formatPhone(e.target.value) }))}
+                            placeholder="(22) 99999-9999"
+                            className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
+                          />
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-3 mt-8 mb-2">
                         <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
                           <MapPin className="h-4 w-4 text-gold" />
                         </div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Opções de Entrega</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Entrega</h4>
                       </div>
 
                       <Tabs value={deliveryType} onValueChange={(v) => setDeliveryType(v as 'delivery' | 'pickup')} className="w-full mb-6">
                         <TabsList className="grid w-full grid-cols-2 bg-white/5 border border-white/10 p-1 h-12 rounded-xl">
-                          <TabsTrigger value="delivery" className="font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gold data-[state=active]:text-deep-black rounded-lg transition-all">Entrega</TabsTrigger>
-                          <TabsTrigger value="pickup" className="font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gold data-[state=active]:text-deep-black rounded-lg transition-all">Retirada no Local</TabsTrigger>
+                          <TabsTrigger value="delivery" className="font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gold data-[state=active]:text-deep-black rounded-lg transition-all">Receber em Casa</TabsTrigger>
+                          <TabsTrigger value="pickup" className="font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gold data-[state=active]:text-deep-black rounded-lg transition-all">Retirar na Loja</TabsTrigger>
                         </TabsList>
                       </Tabs>
 
                       {deliveryType === 'delivery' && (
                         <div className="grid grid-cols-12 gap-4">
                           <div className="col-span-12 space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Rua / Logradouro</Label>
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Bairro</Label>
+                            <div className="relative">
+                              <Button 
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setIsNeighborhoodOpen(!isNeighborhoodOpen)}
+                                className="w-full bg-zinc-900 border border-white/20 text-white h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-4 flex justify-between items-center hover:bg-zinc-800"
+                              >
+                                <span className={cn(!customerInfo.neighborhood && "text-zinc-500")}>
+                                  {customerInfo.neighborhood || "Selecione seu bairro..."}
+                                </span>
+                                <ChevronDown className={cn("h-4 w-4 text-gold transition-transform", isNeighborhoodOpen && "rotate-180")} />
+                              </Button>
+                              
+                              <AnimatePresence>
+                                {isNeighborhoodOpen && (
+                                  <>
+                                    <div 
+                                      className="fixed inset-0 z-40" 
+                                      onClick={() => setIsNeighborhoodOpen(false)} 
+                                    />
+                                    <motion.div 
+                                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                      className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/20 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] max-h-64 overflow-y-auto backdrop-blur-xl"
+                                    >
+                                      {DELIVERY_FEES.map(n => (
+                                        <button
+                                          key={n.name}
+                                          type="button"
+                                          className={cn(
+                                            "w-full px-4 py-4 text-left text-xs font-bold uppercase tracking-widest transition-all border-b border-white/5 last:border-0 flex justify-between items-center",
+                                            customerInfo.neighborhood === n.name ? "bg-gold text-deep-black" : "text-white/70 hover:bg-white/5 hover:text-white"
+                                          )}
+                                          onClick={() => {
+                                            setCustomerInfo(prev => ({ ...prev, neighborhood: n.name }));
+                                            setIsNeighborhoodOpen(false);
+                                          }}
+                                        >
+                                          {n.name}
+                                          {customerInfo.neighborhood === n.name && <CheckCircle2 className="h-4 w-4" />}
+                                        </button>
+                                      ))}
+                                    </motion.div>
+                                  </>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          </div>
+                          <div className="col-span-8 space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Rua</Label>
                             <Input 
                               value={customerInfo.street}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, street: e.target.value }))}
@@ -1771,128 +1843,284 @@ export default function App() {
                             />
                           </div>
                           <div className="col-span-4 space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Número</Label>
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nº</Label>
                             <Input 
                               value={customerInfo.number}
-                              onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value }))}
-                              placeholder="Nº"
+                              onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value.replace(/\D/g, '') }))}
+                              placeholder="123"
                               className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
-                          <div className="col-span-8 space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Bairro</Label>
-                            <select 
-                              value={customerInfo.neighborhood}
-                              onChange={e => setCustomerInfo(prev => ({ ...prev, neighborhood: e.target.value }))}
-                              className="w-full bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all text-sm px-3 appearance-none cursor-pointer"
-                            >
-                              <option value="" disabled className="bg-deep-black text-white/50">Selecione o bairro</option>
-                              {DELIVERY_FEES.map(n => (
-                                <option key={n.name} value={n.name} className="bg-zinc-800 text-white">
-                                  {n.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
                           <div className="col-span-12 space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Complemento / Referência</Label>
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Referência / Complemento</Label>
                             <Input 
                               value={customerInfo.complement}
                               onChange={e => setCustomerInfo(prev => ({ ...prev, complement: e.target.value }))}
-                              placeholder="Apto, bloco, próximo a..."
+                              placeholder="Ex: Próximo ao mercado..."
                               className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
                         </div>
                       )}
 
-                      <div className="grid grid-cols-12 gap-4 mt-4">
-                        <div className="col-span-12 space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Observações do Pedido</Label>
-                          <Input 
-                            value={customerInfo.observations}
-                            onChange={e => setCustomerInfo(prev => ({ ...prev, observations: e.target.value }))}
-                            placeholder="Ex: Sem cebola, etc..."
-                            className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Observações</Label>
+                        <Input 
+                          value={customerInfo.observations}
+                          onChange={e => setCustomerInfo(prev => ({ ...prev, observations: e.target.value }))}
+                          placeholder="Ex: Sem cebola, portão verde..."
+                          className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {checkoutStep === 'payment' && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                    {/* Concise Summary Checklist */}
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle2 className="h-4 w-4 text-gold" />
+                        <span className="text-[10px] font-black uppercase text-white tracking-widest">Confira suas escolhas:</span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {cart.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-white/60">
+                            <span className="truncate max-w-[180px]">
+                              {item.quantity}x {item.pizza.name} {item.pizza2 ? `/ ${item.pizza2.name}` : ''}
+                            </span>
+                            <span className="text-zinc-500">R$ {item.totalPrice.toFixed(2)}</span>
+                          </div>
+                        ))}
                       </div>
 
-                      <div className="mt-8 p-4 bg-white/5 rounded-2xl border border-white/10">
-                        <div className="flex items-center justify-between mb-4">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Precisa de troco?</Label>
-                          <button 
-                            onClick={() => setCustomerInfo(prev => ({ ...prev, needChange: !prev.needChange }))}
-                            className={`h-5 w-10 rounded-full transition-all relative ${customerInfo.needChange ? 'bg-gold' : 'bg-white/10'}`}
-                          >
-                            <motion.div 
-                              animate={{ x: customerInfo.needChange ? 20 : 4 }}
-                              className={`h-3 w-3 rounded-full absolute top-1 ${customerInfo.needChange ? 'bg-deep-black' : 'bg-white/40'}`}
-                            />
-                          </button>
+                      <div className="pt-2 mt-2 border-t border-white/5 space-y-1">
+                        <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase">
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{deliveryType === 'delivery' ? `${customerInfo.neighborhood}, ${customerInfo.street}` : 'Retirada na Loja'}</span>
                         </div>
-                        
-                        {customerInfo.needChange && (
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
+                          <CreditCard className="h-4 w-4 text-gold" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Forma de Pagamento</h4>
+                      </div>
+
+                      <RadioGroup 
+                        value={customerInfo.paymentMethod} 
+                        onValueChange={(v) => setCustomerInfo(prev => ({ ...prev, paymentMethod: v as PaymentMethod }))}
+                        className="grid grid-cols-1 gap-3"
+                      >
+                        <div className="relative">
+                          <RadioGroupItem value="cash_delivery" id="cash" className="peer sr-only" />
+                          <Label htmlFor="cash" className="flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
+                            <div className="flex items-center gap-3">
+                              <motion.div
+                                animate={customerInfo.paymentMethod === 'cash_delivery' ? {
+                                  y: [0, -4, 0],
+                                  scale: [1, 1.2, 1]
+                                } : {}}
+                                transition={{ duration: 0.5 }}
+                              >
+                                <Wallet className="h-5 w-5 text-gold" />
+                              </motion.div>
+                              <span className="text-sm font-bold uppercase tracking-widest">Dinheiro na Entrega</span>
+                            </div>
+                            <div className="h-2 w-2 rounded-full bg-white/10 peer-data-[state=checked]:bg-gold" />
+                          </Label>
+                        </div>
+
+                        {customerInfo.paymentMethod === 'cash_delivery' && (
                           <motion.div 
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="space-y-2"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="px-4 pb-2 space-y-4"
                           >
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Troco para quanto?</Label>
-                            <Input 
-                              type="number"
-                              placeholder={`Mínimo R$ ${cartTotal.toFixed(2)}`}
-                              value={customerInfo.changeFor}
-                              onChange={(e) => setCustomerInfo(prev => ({ ...prev, changeFor: e.target.value }))}
-                              className={cn(
-                                "bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-10 text-sm focus:border-gold/50 placeholder:opacity-100",
-                                parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
-                              )}
-                            />
-                            {parseFloat(customerInfo.changeFor) < cartTotal && (
-                              <p className="text-[9px] text-pizza-red font-bold uppercase tracking-widest">O valor deve ser maior que o total</p>
+                            <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
+                              <span className="text-[10px] font-black uppercase text-white/40">Precisa de troco?</span>
+                              <button 
+                                onClick={() => setCustomerInfo(prev => ({ ...prev, needChange: !prev.needChange }))}
+                                className={`h-5 w-10 rounded-full transition-all relative ${customerInfo.needChange ? 'bg-gold' : 'bg-white/10'}`}
+                              >
+                                <motion.div 
+                                  animate={{ x: customerInfo.needChange ? 20 : 4 }}
+                                  className={`h-3 w-3 rounded-full absolute top-1 ${customerInfo.needChange ? 'bg-deep-black' : 'bg-white/40'}`}
+                                />
+                              </button>
+                            </div>
+
+                            {customerInfo.needChange && (
+                              <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Troco para quanto?</Label>
+                                <Input 
+                                  type="number"
+                                  placeholder={`Mínimo R$ ${cartTotal.toFixed(2)}`}
+                                  value={customerInfo.changeFor}
+                                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, changeFor: e.target.value }))}
+                                  className={cn(
+                                    "bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all",
+                                    parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
+                                  )}
+                                />
+                                {parseFloat(customerInfo.changeFor) < cartTotal && (
+                                  <p className="text-[9px] text-pizza-red font-bold uppercase tracking-widest">Valor insuficiente para o total</p>
+                                )}
+                              </div>
                             )}
                           </motion.div>
                         )}
+
+                        <div className="relative">
+                          <RadioGroupItem value="card_delivery" id="card" className="peer sr-only" />
+                          <Label htmlFor="card" className="flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
+                            <div className="flex items-center gap-3">
+                              <motion.div
+                                animate={customerInfo.paymentMethod === 'card_delivery' ? {
+                                  rotate: [0, -10, 10, -10, 10, 0],
+                                  scale: [1, 1.1, 1]
+                                } : {}}
+                                transition={{ duration: 0.5 }}
+                              >
+                                <CreditCard className="h-5 w-5 text-gold" />
+                              </motion.div>
+                              <span className="text-sm font-bold uppercase tracking-widest">Cartão na Entrega</span>
+                            </div>
+                            <div className="h-2 w-2 rounded-full bg-white/10 peer-data-[state=checked]:bg-gold" />
+                          </Label>
+                        </div>
+
+                        <div className="relative">
+                          <RadioGroupItem value="pix_now" id="pix" className="peer sr-only" />
+                          <Label htmlFor="pix" className="flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
+                            <div className="flex items-center gap-3">
+                              <motion.div
+                                animate={customerInfo.paymentMethod === 'pix_now' ? {
+                                  scale: [1, 1.3, 1],
+                                  rotate: [0, 90, 0]
+                                } : {}}
+                                transition={{ duration: 0.5 }}
+                              >
+                                <QrCode className="h-5 w-5 text-gold" />
+                              </motion.div>
+                              <span className="text-sm font-bold uppercase tracking-widest">PIX</span>
+                            </div>
+                            <div className="h-2 w-2 rounded-full bg-white/10 peer-data-[state=checked]:bg-gold" />
+                          </Label>
+                        </div>
+                      </RadioGroup>
+
+                      {customerInfo.paymentMethod === 'pix_now' && (
+                        <div className="p-4 bg-gold/5 rounded-2xl border border-gold/20 space-y-3">
+                          <div className="flex items-center gap-2 text-gold">
+                            <Info className="h-4 w-4" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Pagamento via PIX</span>
+                          </div>
+                          <p className="text-xs text-white/60 leading-relaxed italic">
+                            A chave PIX será exibida no próximo passo e também após a finalização do pedido.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {checkoutStep === 'summary' && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center">
+                          <History className="h-4 w-4 text-gold" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Resumo do Pedido</h4>
                       </div>
 
-                      <div className="space-y-4 mt-6">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Método de Pagamento</Label>
-                        <RadioGroup 
-                          value={customerInfo.paymentMethod} 
-                          onValueChange={(v) => setCustomerInfo(prev => ({ ...prev, paymentMethod: v as PaymentMethod }))}
-                          className="grid grid-cols-3 gap-2"
-                        >
-                          <div className="relative">
-                            <RadioGroupItem value="cash_delivery" id="cash" className="peer sr-only" />
-                            <Label htmlFor="cash" className="flex flex-col items-center justify-center p-3 rounded-xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
-                              <Wallet className="h-5 w-5 mb-1 text-gold" />
-                              <span className="text-[8px] font-black uppercase">Dinheiro</span>
-                            </Label>
+                      <div className="space-y-4 p-6 bg-white/5 rounded-3xl border border-white/10">
+                        <div className="flex justify-between items-center text-white/40 font-bold uppercase text-[10px] tracking-widest">
+                          <span>Subtotal</span>
+                          <span>R$ {cartSubtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-white/40 font-bold uppercase text-[10px] tracking-widest">
+                          <span>Taxa de Entrega</span>
+                          <span>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Grátis'}</span>
+                        </div>
+                        {appliedCoupon && (
+                          <div className="flex justify-between items-center text-green-500 font-bold uppercase text-[10px] tracking-widest">
+                            <span>Desconto</span>
+                            <span>- R$ {(cartSubtotal * (appliedCoupon.discount / 100)).toFixed(2)}</span>
                           </div>
-                          <div className="relative">
-                            <RadioGroupItem value="card_delivery" id="card" className="peer sr-only" />
-                            <Label htmlFor="card" className="flex flex-col items-center justify-center p-3 rounded-xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
-                              <CreditCard className="h-5 w-5 mb-1 text-gold" />
-                              <span className="text-[8px] font-black uppercase">Cartão</span>
-                            </Label>
+                        )}
+                        
+                        <div className="pt-4 mt-4 border-t border-white/10">
+                          <div className="flex flex-col items-center justify-center gap-2 py-4">
+                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Total Final</span>
+                            <span className="text-6xl font-black text-gold tracking-tighter">
+                              R$ {cartTotal.toFixed(2)}
+                            </span>
                           </div>
-                          <div className="relative">
-                            <RadioGroupItem value="pix_now" id="pix" className="peer sr-only" />
-                            <Label htmlFor="pix" className="flex flex-col items-center justify-center p-3 rounded-xl border border-white/10 bg-white/5 peer-data-[state=checked]:border-gold peer-data-[state=checked]:bg-gold/10 cursor-pointer transition-all">
-                              <QrCode className="h-5 w-5 mb-1 text-gold" />
-                              <span className="text-[8px] font-black uppercase">PIX</span>
-                            </Label>
-                          </div>
-                        </RadioGroup>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5 text-left mt-6">
-                        <Info className="h-5 w-5 text-gold shrink-0" />
-                        <p className="text-[10px] text-white/60 font-medium uppercase tracking-widest">
-                          O pagamento é feito na entrega (Dinheiro, Cartão ou PIX).
-                        </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-1">
+                          <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">Entrega em</span>
+                          <p className="text-[10px] font-bold text-white uppercase truncate">
+                            {deliveryType === 'delivery' ? `${customerInfo.neighborhood}, ${customerInfo.number}` : 'Retirada na Loja'}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-1">
+                          <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">Pagamento</span>
+                          <p className="text-[10px] font-bold text-white uppercase">
+                            {customerInfo.paymentMethod === 'cash_delivery' ? 'Dinheiro' : 
+                             customerInfo.paymentMethod === 'card_delivery' ? 'Cartão' : 'PIX'}
+                          </p>
+                        </div>
                       </div>
+
+                      {customerInfo.paymentMethod === 'pix_now' && (
+                        <div className="p-4 bg-zinc-900 rounded-2xl border border-white/10 space-y-4">
+                          <div className="flex items-start gap-4">
+                            <div className="bg-white p-2 rounded-xl h-24 w-24 flex items-center justify-center shrink-0">
+                              <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(generatePixPayload(cartTotal))}`}
+                                alt="QR Code Pix"
+                                className="h-full w-full object-contain"
+                              />
+                            </div>
+                            <div className="space-y-1 flex-1">
+                              <span className="text-[8px] font-black uppercase text-gold tracking-widest leading-none">Chave PIX (CNPJ)</span>
+                              <p className="text-sm font-mono font-bold text-white break-all">45.890.123/0001-45</p>
+                              <p className="text-[10px] font-bold text-white/40 uppercase">Pizzaria Ouro Preto</p>
+                            </div>
+                          </div>
+                          
+                          <div className="pt-3 border-t border-white/5 space-y-3">
+                            <div className="flex items-center gap-2 bg-gold/5 p-2 rounded-lg border border-gold/20">
+                              <AlertCircle className="h-4 w-4 text-gold shrink-0" />
+                              <p className="text-[9px] font-black text-gold uppercase leading-tight tracking-wider">
+                                Confirme se o recebedor é PIZZARIA OURO PRETO antes de pagar.
+                              </p>
+                            </div>
+
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="w-full text-white/40 hover:text-white border border-white/5 h-10 font-black uppercase text-[10px] tracking-widest"
+                              onClick={() => {
+                                navigator.clipboard.writeText('45890123000145');
+                                toast.success('Chave PIX copiada!');
+                              }}
+                            >
+                              Copiar Chave CNPJ
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1961,6 +2189,47 @@ export default function App() {
                     </div>
                     
                     <div className="w-full max-w-sm p-6 bg-white/5 rounded-2xl border border-white/10 text-sm text-white/80 space-y-3">
+                      {customerInfo.paymentMethod === 'pix_now' && (
+                        <div className="mb-6 p-6 bg-zinc-900 rounded-2xl border border-gold/30 space-y-5 text-center">
+                          <p className="text-[10px] font-black uppercase text-gold tracking-widest leading-none">Escaneie o QR Code abaixo</p>
+                          
+                          <div className="flex justify-center">
+                            <div className="bg-white p-3 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                               <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(generatePixPayload(cartTotal))}`}
+                                alt="QR Code Pix"
+                                className="h-48 w-48 object-contain"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="py-2 border-y border-white/10">
+                              <p className="text-xl font-mono font-black text-white">45.890.123/0001-45</p>
+                              <p className="text-[10px] font-bold text-white/40 uppercase mt-1">Beneficiário: Pizzaria Ouro Preto</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 justify-center bg-gold/5 p-3 rounded-xl border border-gold/20">
+                              <AlertCircle className="h-4 w-4 text-gold shrink-0" />
+                              <p className="text-[10px] font-black text-gold uppercase leading-tight tracking-wider text-left">
+                                Confirme se o recebedor é PIZZARIA OURO PRETO antes de digitar sua senha.
+                              </p>
+                            </div>
+                          </div>
+
+                          <Button 
+                            className="bg-gold text-deep-black w-full font-black uppercase tracking-widest h-12"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText('45890123000145');
+                              toast.success('Chave PIX copiada!');
+                            }}
+                          >
+                            Copiar Chave CNPJ
+                          </Button>
+                        </div>
+                      )}
+                      
                       <p className="font-bold text-gold uppercase text-[10px] tracking-widest text-center">Próximo Passo:</p>
                       <p className="text-center">
                         Para finalizar seu pedido, clique no botão abaixo para nos enviar os detalhes e <span className="text-white font-black underline decoration-gold/50">acertar o pagamento via WhatsApp</span>. 
@@ -2001,30 +2270,50 @@ export default function App() {
                       
                       {checkoutStep === 'cart' && (
                         <Button 
-                          onClick={() => setCheckoutStep('details')}
+                          onClick={() => setCheckoutStep('address')}
                           className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group"
                         >
                           ENTREGA <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                         </Button>
                       )}
 
-                      {checkoutStep === 'details' && (
+                      {checkoutStep === 'address' && (
                         <Button 
                           disabled={
-                            isSubmitting ||
                             !customerInfo.name || 
                             customerInfo.name.length < 3 ||
                             !customerInfo.phone || 
                             customerInfo.phone.replace(/\D/g, '').length !== 11 ||
-                            (deliveryType === 'delivery' && (!customerInfo.street || !customerInfo.number || !customerInfo.neighborhood)) ||
-                            (customerInfo.needChange && (!customerInfo.changeFor || parseFloat(customerInfo.changeFor) < cartTotal))
+                            (deliveryType === 'delivery' && (!customerInfo.street || !customerInfo.number || !customerInfo.neighborhood))
                           }
+                          onClick={() => setCheckoutStep('payment')}
+                          className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group disabled:opacity-50"
+                        >
+                          PAGAMENTO <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                      )}
+
+                      {checkoutStep === 'payment' && (
+                        <Button 
+                          disabled={
+                            (customerInfo.paymentMethod === 'cash_delivery' && customerInfo.needChange && (!customerInfo.changeFor || parseFloat(customerInfo.changeFor) < cartTotal))
+                          }
+                          onClick={() => setCheckoutStep('summary')}
+                          className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group disabled:opacity-50"
+                        >
+                          RESUMO <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                      )}
+
+                      {checkoutStep === 'summary' && (
+                        <Button 
+                          disabled={isSubmitting}
                           onClick={handleFinalizeOrder}
                           className="bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-green-600/20 group disabled:opacity-50"
                         >
                           {isSubmitting ? 'PROCESSANDO...' : (
                             <>
-                              FINALIZAR <MessageCircle className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                              FINALIZAR PEDIDO <MessageCircle className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
                             </>
                           )}
                         </Button>
@@ -2036,10 +2325,12 @@ export default function App() {
                         variant="ghost" 
                         className="w-full text-white/20 hover:text-white text-[10px] font-black uppercase tracking-widest h-8"
                         onClick={() => {
-                          if (checkoutStep === 'details') setCheckoutStep('cart');
+                          if (checkoutStep === 'address') setCheckoutStep('cart');
+                          if (checkoutStep === 'payment') setCheckoutStep('address');
+                          if (checkoutStep === 'summary') setCheckoutStep('payment');
                         }}
                       >
-                        ← VOLTAR PARA CARRINHO
+                        ← VOLTAR
                       </Button>
                     )}
                   </div>
