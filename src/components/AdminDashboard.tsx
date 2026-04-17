@@ -258,6 +258,19 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [orders, setOrders] = useState<Order[]>([]);
+  const alarmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previousOrdersCount = useRef<number>(0);
+
+  useEffect(() => {
+    // Only play alarm if it's an actual increase in active orders
+    const activeOrders = orders.filter(o => o.status === 'received');
+    if (activeOrders.length > previousOrdersCount.current) {
+      if (alarmAudioRef.current) {
+        alarmAudioRef.current.play().catch(e => console.log('Audio play blocked:', e));
+      }
+    }
+    previousOrdersCount.current = activeOrders.length;
+  }, [orders]);
   const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'history' | 'finance' | 'menu' | 'settings'>('orders');
   const audioRef = useRef<HTMLAudioElement>(null);
   const ordersRef = useRef<Order[]>([]);

@@ -447,6 +447,7 @@ export default function App() {
 
   const handleFinalizeOrder = async () => {
     if (!user) {
+      setIsCartOpen(false);
       setIsAuthModalOpen(true);
       return;
     }
@@ -862,9 +863,9 @@ export default function App() {
 
   useEffect(() => {
     // Fetch reliable server time to prevent local clock manipulation issues for display
-    fetch('https://worldtimeapi.org/api/timezone/America/Sao_Paulo')
+    fetch('https://timeapi.io/api/Time/current/zone?timeZone=America/Sao_Paulo')
       .then(res => res.json())
-      .then(data => setServerTime(new Date(data.utc_datetime)))
+      .then(data => setServerTime(new Date(data.dateTime)))
       .catch(err => {
         console.error("Failed to fetch server time, falling back to local time", err);
         setServerTime(new Date());
