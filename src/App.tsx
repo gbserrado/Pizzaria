@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
@@ -206,7 +207,9 @@ export default function App() {
     paymentMethod: 'cash_delivery' as PaymentMethod
   });
 
-  const [isAdminView, setIsAdminView] = useState(window.location.pathname === '/admin');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isAdminView = location.pathname.startsWith('/admin');
   const [storeConfig, setStoreConfig] = useState<StoreConfig>({ lojaAberta: true });
   const [menuStatus, setMenuStatus] = useState<Record<string, boolean>>({});
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
@@ -226,15 +229,6 @@ export default function App() {
       available: menuStatus[p.id] !== false
     }));
   }, [menuStatus]);
-
-  // Handle URL changes for admin
-  useEffect(() => {
-    const handlePathChange = () => {
-      setIsAdminView(window.location.pathname === '/admin');
-    };
-    window.addEventListener('popstate', handlePathChange);
-    return () => window.removeEventListener('popstate', handlePathChange);
-  }, []);
 
   // Listen to store config and menu - Shared
   useEffect(() => {
@@ -864,8 +858,21 @@ export default function App() {
     </div>
   );
 
+  const [serverTime, setServerTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    // Fetch reliable server time to prevent local clock manipulation issues for display
+    fetch('https://worldtimeapi.org/api/timezone/America/Sao_Paulo')
+      .then(res => res.json())
+      .then(data => setServerTime(new Date(data.utc_datetime)))
+      .catch(err => {
+        console.error("Failed to fetch server time, falling back to local time", err);
+        setServerTime(new Date());
+      });
+  }, []);
+
   const getNextOpeningTime = () => {
-    const now = new Date();
+    const now = serverTime || new Date();
     const day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const hour = now.getHours();
     const minute = now.getMinutes();
@@ -1846,8 +1853,8 @@ export default function App() {
                             <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nº</Label>
                             <Input 
                               value={customerInfo.number}
-                              onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value.replace(/\D/g, '') }))}
-                              placeholder="123"
+                              onChange={e => setCustomerInfo(prev => ({ ...prev, number: e.target.value }))}
+                              placeholder="123A"
                               className="bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all placeholder:opacity-100"
                             />
                           </div>
@@ -1880,23 +1887,44 @@ export default function App() {
                   <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                     {/* Concise Summary Checklist */}
                     <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5">
                         <CheckCircle2 className="h-4 w-4 text-gold" />
-                        <span className="text-[10px] font-black uppercase text-white tracking-widest">Confira suas escolhas:</span>
+                        <span className="text-[10px] font-black uppercase text-gold tracking-widest">Resumo da Compra</span>
                       </div>
                       
                       <div className="space-y-2">
                         {cart.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-white/60">
+                          <div key={idx} className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-white">
                             <span className="truncate max-w-[180px]">
                               {item.quantity}x {item.pizza.name} {item.pizza2 ? `/ ${item.pizza2.name}` : ''}
                             </span>
-                            <span className="text-zinc-500">R$ {item.totalPrice.toFixed(2)}</span>
+                            <span className="text-white/60">R$ {item.totalPrice.toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
 
-                      <div className="pt-2 mt-2 border-t border-white/5 space-y-1">
+                      <div className="pt-2 mt-2 border-t border-white/5 space-y-2">
+                        <div className="flex justify-between items-center text-[10px] text-white/50 font-bold uppercase">
+                          <span>Subtotal</span>
+                          <span>R$ {cartSubtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-white/50 font-bold uppercase">
+                          <span>Taxa de Entrega</span>
+                          <span>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Grátis'}</span>
+                        </div>
+                        {appliedCoupon && (
+                          <div className="flex justify-between items-center text-[10px] text-green-500 font-bold uppercase">
+                            <span>Desconto</span>
+                            <span>- R$ {(cartSubtotal * (appliedCoupon.discount / 100)).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-xs text-gold font-black uppercase tracking-widest pt-1">
+                          <span>Total Final</span>
+                          <span>R$ {cartTotal.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 mt-2 border-t border-white/5">
                         <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase">
                           <MapPin className="h-3 w-3" />
                           <span className="truncate">{deliveryType === 'delivery' ? `${customerInfo.neighborhood}, ${customerInfo.street}` : 'Retirada na Loja'}</span>
@@ -1959,10 +1987,12 @@ export default function App() {
                               <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Troco para quanto?</Label>
                                 <Input 
-                                  type="number"
-                                  placeholder={`Mínimo R$ ${cartTotal.toFixed(2)}`}
                                   value={customerInfo.changeFor}
-                                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, changeFor: e.target.value }))}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, '');
+                                    setCustomerInfo(prev => ({ ...prev, changeFor: val }));
+                                  }}
+                                  placeholder={`Mínimo R$ ${cartTotal.toFixed(2)}`}
                                   className={cn(
                                     "bg-zinc-900 border-white/20 text-white placeholder:text-zinc-500 h-12 rounded-xl focus:border-gold/50 transition-all",
                                     parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
@@ -2419,7 +2449,7 @@ export default function App() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-white/20">
             <p>© 2024 Pizzaria Ouro Preto. Sabor que vem do forno.</p>
             <div className="flex gap-8 items-center">
-              <button onClick={() => setIsAdminView(true)} className="hover:text-gold transition-colors">Admin</button>
+              <button onClick={() => navigate('/admin')} className="hover:text-gold transition-colors">Admin</button>
               <a href="#" className="hover:text-white transition-colors">Privacidade</a>
               <a href="#" className="hover:text-white transition-colors">Termos</a>
             </div>
