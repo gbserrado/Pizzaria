@@ -20,7 +20,11 @@ import {
   QrCode,
   Wallet,
   Utensils,
-  ExternalLink
+  ExternalLink,
+  History,
+  TrendingUp,
+  DollarSign,
+  Calendar
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { 
@@ -251,7 +255,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [orders, setOrders] = useState<Order[]>([]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'menu' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'history' | 'finance' | 'menu' | 'settings'>('orders');
   const audioRef = useRef<HTMLAudioElement>(null);
   const ordersRef = useRef<Order[]>([]);
 
@@ -555,6 +559,20 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
             <Utensils className="h-6 w-6" />
           </button>
           <button 
+            onClick={() => setActiveTab('history')}
+            className={cn("p-3 rounded-xl transition-all", activeTab === 'history' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
+            title="Histórico de Pedidos"
+          >
+            <History className="h-6 w-6" />
+          </button>
+          <button 
+            onClick={() => setActiveTab('finance')}
+            className={cn("p-3 rounded-xl transition-all", activeTab === 'finance' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
+            title="Financeiro"
+          >
+            <DollarSign className="h-6 w-6" />
+          </button>
+          <button 
             onClick={() => setActiveTab('menu')}
             className={cn("p-3 rounded-xl transition-all", activeTab === 'menu' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
           >
@@ -591,7 +609,11 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
         <header className="h-20 border-b border-white/10 bg-graphite/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-black uppercase italic tracking-tighter">
-              {activeTab === 'orders' ? 'Gestão de Pedidos' : activeTab === 'kitchen' ? 'Visão da Cozinha' : activeTab === 'menu' ? 'Cardápio' : 'Configurações'}
+              {activeTab === 'orders' ? 'Gestão de Pedidos' : 
+               activeTab === 'kitchen' ? 'Visão da Cozinha' : 
+               activeTab === 'history' ? 'Histórico de Pedidos' :
+               activeTab === 'finance' ? 'Informações Financeiras' :
+               activeTab === 'menu' ? 'Cardápio' : 'Configurações'}
             </h1>
             <Badge variant="outline" className={cn("uppercase text-[10px] font-black", storeConfig.lojaAberta ? "text-green-500 border-green-500/20 bg-green-500/10" : "text-red-500 border-red-500/20 bg-red-500/10")}>
               {storeConfig.lojaAberta ? 'Loja Aberta' : 'Loja Fechada'}
@@ -724,6 +746,188 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
                   <h2 className="text-3xl font-black uppercase tracking-widest">Nenhum pedido na cozinha</h2>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-black uppercase italic tracking-tight">Pedidos Recentes</h2>
+                <div className="flex gap-2">
+                  <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+                    {orders.filter(o => o.status === 'completed').length} Concluídos
+                  </Badge>
+                  <Badge className="bg-red-500/10 text-red-500 border-red-500/20">
+                    {orders.filter(o => o.status === 'cancelled').length} Cancelados
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map((order: Order) => (
+                  <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
+                ))}
+                {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 && (
+                  <div className="col-span-full py-20 text-center text-white/40">
+                    <History className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="font-bold uppercase tracking-widest text-xs">Nenhum pedido no histórico ainda</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'finance' && (
+            <div className="space-y-8">
+              {/* Financial Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="bg-white/5 border-white/10 text-white overflow-hidden relative">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <TrendingUp className="h-12 w-12 text-gold" />
+                  </div>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-white/40 font-black uppercase text-[10px] tracking-widest">Faturamento Total</CardDescription>
+                    <CardTitle className="text-3xl font-black text-gold">
+                      R$ {orders.filter(o => o.status === 'completed').reduce((acc, o) => acc + (o.total || 0), 0).toFixed(2)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-[10px] text-white/40 font-bold uppercase">{orders.filter(o => o.status === 'completed').length} pedidos finalizados</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/5 border-white/10 text-white overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-white/40 font-black uppercase text-[10px] tracking-widest">Ticket Médio</CardDescription>
+                    <CardTitle className="text-3xl font-black text-white">
+                      R$ {orders.filter(o => o.status === 'completed').length > 0 
+                        ? (orders.filter(o => o.status === 'completed').reduce((acc, o) => acc + (o.total || 0), 0) / orders.filter(o => o.status === 'completed').length).toFixed(2)
+                        : '0.00'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-[10px] text-white/40 font-bold uppercase">Média por pedido</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/5 border-white/10 text-white overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-white/40 font-black uppercase text-[10px] tracking-widest">Pedidos Hoje</CardDescription>
+                    <CardTitle className="text-3xl font-black text-white">
+                      {orders.filter(o => {
+                        const today = new Date().setHours(0,0,0,0);
+                        const orderDate = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000).setHours(0,0,0,0) : new Date(o.createdAt).setHours(0,0,0,0);
+                        return orderDate === today;
+                      }).length}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      <span className="text-[9px] bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded font-black">
+                        {orders.filter(o => {
+                          const today = new Date().setHours(0,0,0,0);
+                          const orderDate = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000).setHours(0,0,0,0) : new Date(o.createdAt).setHours(0,0,0,0);
+                          return orderDate === today && o.status === 'completed';
+                        }).length} OK
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/5 border-white/10 text-white overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="text-white/40 font-black uppercase text-[10px] tracking-widest">Cancelamentos</CardDescription>
+                    <CardTitle className="text-3xl font-black text-red-400">
+                      {orders.filter(o => o.status === 'cancelled').length}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-[10px] text-white/40 font-bold uppercase">Pedidos não finalizados</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Revenue Breakdown */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="bg-white/5 border-white/10 text-white">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-black uppercase italic tracking-tight">Métodos de Pagamento</CardTitle>
+                    <CardDescription>Distribuição do faturamento por forma de pagamento</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {[
+                      { label: 'PIX', key: 'pix_now', color: 'bg-gold', icon: QrCode },
+                      { label: 'Cartão', key: 'card_delivery', color: 'bg-blue-500', icon: CreditCard },
+                      { label: 'Dinheiro', key: 'cash_delivery', color: 'bg-green-500', icon: Wallet }
+                    ].map((method) => {
+                      const methodOrders = orders.filter(o => o.status === 'completed' && o.paymentMethod === method.key);
+                      const methodTotal = methodOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+                      const totalRevenue = orders.filter(o => o.status === 'completed').reduce((acc, o) => acc + (o.total || 0), 0);
+                      const percentage = totalRevenue > 0 ? (methodTotal / totalRevenue) * 100 : 0;
+                      
+                      return (
+                        <div key={method.key} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className={cn("p-1.5 rounded-lg", method.color + "/20")}>
+                                <method.icon className={cn("h-4 w-4", "text-" + method.color.split('-')[1] + "-500")} />
+                              </div>
+                              <span className="text-sm font-black uppercase tracking-tight">{method.label}</span>
+                            </div>
+                            <span className="text-sm font-black text-white">R$ {methodTotal.toFixed(2)}</span>
+                          </div>
+                          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percentage}%` }}
+                              className={cn("h-full", method.color)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/5 border-white/10 text-white">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-black uppercase italic tracking-tight">Delivery vs Balcão</CardTitle>
+                    <CardDescription>Origem dos pedidos concluídos</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {[
+                      { label: 'Entrega (Delivery)', key: 'delivery', color: 'bg-gold', icon: Truck },
+                      { label: 'Retirada (Pickup)', key: 'pickup', color: 'bg-white', icon: ShoppingBag }
+                    ].map((type) => {
+                      const typeOrders = orders.filter(o => o.status === 'completed' && o.deliveryType === type.key);
+                      const typeTotal = typeOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+                      const totalRevenue = orders.filter(o => o.status === 'completed').reduce((acc, o) => acc + (o.total || 0), 0);
+                      const percentage = totalRevenue > 0 ? (typeTotal / totalRevenue) * 100 : 0;
+                      
+                      return (
+                        <div key={type.key} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className={cn("p-1.5 rounded-lg", type.color + "/20")}>
+                                <type.icon className={cn("h-4 w-4", type.color === 'bg-white' ? "text-white" : "text-gold")} />
+                              </div>
+                              <span className="text-sm font-black uppercase tracking-tight">{type.label}</span>
+                            </div>
+                            <span className="text-sm font-black text-white">{typeOrders.length} pedidos</span>
+                          </div>
+                          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percentage}%` }}
+                              className={cn("h-full", type.color)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
 
