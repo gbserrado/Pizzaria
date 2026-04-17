@@ -740,7 +740,7 @@ export default function App() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Tamanho</Label>
-              <Badge variant="outline" className="text-[10px] border-gold/20 text-gold/60">Obrigatório</Badge>
+              <Badge variant="ghost" className="text-[10px] border border-gold/20 text-gold/60">Obrigatório</Badge>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {SIZES.map((size) => {
@@ -908,7 +908,7 @@ export default function App() {
             <p className="text-xl font-bold text-white">{getNextOpeningTime()}</p>
           </div>
           <div className="mt-8 flex gap-4">
-            <Button variant="outline" className="border-white/10 text-white" onClick={() => window.location.href = 'tel:22998487785'}>
+            <Button variant="ghost" className="border border-white/10 text-white bg-white/5 hover:bg-white/10" onClick={() => window.location.href = 'tel:22998487785'}>
               <Phone className="mr-2 h-4 w-4" /> Ligar para Loja
             </Button>
           </div>
@@ -951,16 +951,16 @@ export default function App() {
             {user && (
               <>
                 <Button 
-                  variant="outline" 
-                  className="hidden md:flex border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 px-4 gap-2 text-xs font-bold uppercase tracking-widest"
+                  variant="ghost" 
+                  className="hidden md:flex border border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 px-4 gap-2 text-xs font-bold uppercase tracking-widest"
                   onClick={() => setIsOrdersOpen(true)}
                 >
                   <History className="h-4 w-4 text-gold" />
                   Meus Pedidos
                 </Button>
                 <Button 
-                  variant="outline" 
-                  className="md:hidden border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0"
+                  variant="ghost" 
+                  className="md:hidden border border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0"
                   onClick={() => setIsOrdersOpen(true)}
                 >
                   <History className="h-5 w-5 text-gold" />
@@ -972,9 +972,9 @@ export default function App() {
               transition={{ duration: 0.4 }}
             >
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 className={cn(
-                  "relative border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0 transition-all",
+                  "relative border border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0 transition-all",
                   isCartBouncing && "border-gold shadow-[0_0_20px_rgba(212,175,55,0.3)]"
                 )}
                 onClick={() => setIsCartOpen(true)}
@@ -1676,12 +1676,12 @@ export default function App() {
                                 </div>
                                 <div className="flex flex-wrap gap-2 mt-1">
                                   {item.size && (
-                                    <Badge variant="outline" className="text-[8px] border-white/10 text-white/40 uppercase font-black tracking-widest py-0">
+                                    <Badge variant="ghost" className="text-[8px] border border-white/10 text-white/40 uppercase font-black tracking-widest py-0">
                                       {item.size}
                                     </Badge>
                                   )}
                                   {item.extras.map(extra => (
-                                    <Badge key={extra} variant="outline" className="text-[8px] border-gold/10 text-gold/60 uppercase font-black tracking-widest py-0">
+                                    <Badge key={extra} variant="ghost" className="text-[8px] border border-gold/10 text-gold/60 uppercase font-black tracking-widest py-0">
                                       + {extra}
                                     </Badge>
                                   ))}

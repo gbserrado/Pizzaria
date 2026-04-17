@@ -100,9 +100,9 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
               </p>
               <h3 className="font-black uppercase italic text-lg">{order.customerName}</h3>
             </div>
-          <Badge variant="outline" className="bg-gold/10 text-gold border-gold/20 uppercase text-[10px] font-black">
-            {order.paymentMethod === 'pix_now' ? 'PIX' : order.paymentMethod === 'card_delivery' ? 'CARTÃO' : 'DINHEIRO'}
-          </Badge>
+            <Badge variant="ghost" className="bg-gold/10 text-gold border border-gold/20 uppercase text-[10px] font-black">
+              {order.paymentMethod === 'pix_now' ? 'PIX' : order.paymentMethod === 'card_delivery' ? 'CARTÃO' : 'DINHEIRO'}
+            </Badge>
         </div>
 
         <div className="space-y-2">
@@ -202,24 +202,27 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex gap-2">
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm"
-            className="border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase"
+            className={cn(
+              "flex-1 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase h-10 transition-all",
+              (order.status === 'completed' || order.status === 'cancelled') ? "w-full" : ""
+            )}
             onClick={() => {
               const msg = `Olá ${order.customerName || ''}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
               window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
           >
-            <MessageCircle className="h-3 w-3 mr-2 text-green-500" />
+            <MessageCircle className="h-4 w-4 mr-2 text-green-500" />
             WhatsApp
           </Button>
           
           {order.status === 'received' && (
             <Button 
               size="sm"
-              className={cn("text-[10px] font-black uppercase", isPanic ? "bg-red-600 hover:bg-red-700 text-white" : "bg-gold hover:bg-gold-dark text-deep-black")}
+              className={cn("flex-1 text-[10px] font-black uppercase h-10", isPanic ? "bg-red-600 hover:bg-red-700 text-white" : "bg-gold hover:bg-gold-dark text-deep-black")}
               onClick={() => onUpdateStatus(order.id!, 'cooking')}
             >
               Produzir
@@ -229,7 +232,7 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
           {order.status === 'cooking' && (
             <Button 
               size="sm"
-              className="bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase"
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase h-10"
               onClick={() => onUpdateStatus(order.id!, 'delivery')}
             >
               Entregar
@@ -239,12 +242,12 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
           {order.status === 'delivery' && (
             <Button 
               size="sm"
-              className="bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase"
+              className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase h-10"
               onClick={() => onUpdateStatus(order.id!, 'completed', order.phone)}
             >
               Concluir
             </Button>
-          )}
+          ) /* Fixed structure */}
         </div>
       </div>
     </Card>
@@ -436,9 +439,9 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
               </Button>
               <Button 
                 type="button" 
-                variant="outline" 
+                variant="ghost" 
                 onClick={() => window.location.href = '/'}
-                className="w-full border-white/10 hover:bg-white/5 text-white h-12 font-bold"
+                className="w-full border border-white/10 hover:bg-white/5 text-white/60 hover:text-white h-12 font-bold transition-all"
               >
                 Voltar ao Site
               </Button>
@@ -615,7 +618,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
                activeTab === 'finance' ? 'Informações Financeiras' :
                activeTab === 'menu' ? 'Cardápio' : 'Configurações'}
             </h1>
-            <Badge variant="outline" className={cn("uppercase text-[10px] font-black", storeConfig.lojaAberta ? "text-green-500 border-green-500/20 bg-green-500/10" : "text-red-500 border-red-500/20 bg-red-500/10")}>
+            <Badge variant="ghost" className={cn("uppercase text-[10px] font-black border", storeConfig.lojaAberta ? "text-green-500 border-green-500/20 bg-green-500/10" : "text-red-500 border-red-500/20 bg-red-500/10")}>
               {storeConfig.lojaAberta ? 'Loja Aberta' : 'Loja Fechada'}
             </Badge>
           </div>
@@ -754,10 +757,10 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-black uppercase italic tracking-tight">Pedidos Recentes</h2>
                 <div className="flex gap-2">
-                  <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+                  <Badge variant="ghost" className="bg-green-500/10 text-green-500 border border-green-500/20">
                     {orders.filter(o => o.status === 'completed').length} Concluídos
                   </Badge>
-                  <Badge className="bg-red-500/10 text-red-500 border-red-500/20">
+                  <Badge variant="ghost" className="bg-red-500/10 text-red-500 border border-red-500/20">
                     {orders.filter(o => o.status === 'cancelled').length} Cancelados
                   </Badge>
                 </div>
@@ -950,7 +953,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
                         <CardTitle className="text-sm font-black uppercase italic leading-none">{pizza.name}</CardTitle>
                         <CardDescription className="text-[10px] uppercase font-bold text-white/40">{pizza.category}</CardDescription>
                       </div>
-                      <Badge variant="outline" className={cn("text-[9px] font-black tracking-tighter", menuStatus[pizza.id] !== false ? "text-green-500 border-green-500/30" : "text-red-500 border-red-500/30")}>
+                      <Badge variant="ghost" className={cn("text-[9px] font-black tracking-tighter border", menuStatus[pizza.id] !== false ? "text-green-500 border-green-500/30 bg-green-500/5" : "text-red-500 border-red-500/30 bg-red-500/5")}>
                         {menuStatus[pizza.id] !== false ? 'DISPONÍVEL' : 'ESGOTADO'}
                       </Badge>
                     </div>
