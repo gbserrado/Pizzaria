@@ -897,7 +897,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-deep-black text-white font-sans selection:bg-gold selection:text-deep-black">
+    <div className="min-h-screen pb-32 bg-deep-black text-white font-sans selection:bg-gold selection:text-deep-black">
       <audio ref={successAudioRef} src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" />
       <Toaster position="top-center" richColors />
 
@@ -1484,6 +1484,34 @@ export default function App() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Mandatory Login Modal */}
+      <Dialog open={isLoginOpen} onOpenChange={() => {}}>
+        <DialogContent className="bg-graphite border-gold/20 text-white sm:max-w-[400px]" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-gold uppercase italic text-center">🔐 Bem-vindo à Ouro Preto</DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4 text-center">
+            <p className="text-white/60">Para continuar aproveitando nossas ofertas, faça login ou crie sua conta.</p>
+            <Button 
+              className="w-full bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-12"
+              onClick={async () => {
+                const provider = new GoogleAuthProvider();
+                try {
+                  await signInWithPopup(auth, provider);
+                  setIsLoginOpen(false);
+                } catch (e) {
+                  console.error(e);
+                  toast.error("Erro ao fazer login");
+                }
+              }}
+            >
+              Entrar com Google
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AnimatePresence>
         {isCartOpen && (
           <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-end md:justify-center">
