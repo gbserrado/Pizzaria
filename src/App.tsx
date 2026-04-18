@@ -2068,7 +2068,27 @@ export default function App() {
                               }}
                             >
                               Copiar Chave CNPJ
-                            </Button>
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  const now = new Date();
+                                  const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+                                  const orderId = (lastOrderId && lastOrderId !== '---') ? `#${lastOrderId}` : `de ${timeString}`;
+                                  const total = cartTotal.toFixed(2);
+                                  const customerName = customerInfo.name || 'Cliente';
+                                  
+                                  const msg = `✅ COMPROVANTE DE PAGAMENTO
+Pedido: ${orderId}
+Cliente: ${customerName}
+Total: R$ ${total}
+Pagamento: PIX
+Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimento para iniciar a produção!`;
+                                  window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                                }}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] tracking-widest h-10 mt-2"
+                              >
+                                Enviar Comprovante via WhatsApp
+                              </Button>
                           </div>
                         </div>
                       )}
@@ -2094,6 +2114,29 @@ export default function App() {
                          currentOrderStatus === 'delivery' ? '🚀 Saiu para Entrega!' :
                          currentOrderStatus === 'completed' ? '✅ Pedido Finalizado!' : 'Pedido Cancelado'}
                       </h4>
+                      
+                       {customerInfo.paymentMethod === 'pix_now' && (
+                        <Button 
+                          onClick={() => {
+                            const now = new Date();
+                            const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+                            const orderId = (lastOrderId && lastOrderId !== '---') ? `#${lastOrderId}` : `de ${timeString}`;
+                            const total = cartTotal.toFixed(2);
+                            const customerName = customerInfo.name || 'Cliente';
+                            
+                            const msg = `✅ COMPROVANTE DE PAGAMENTO
+Pedido: ${orderId}
+Cliente: ${customerName}
+Total: R$ ${total}
+Pagamento: PIX
+Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimento para iniciar a produção!`;
+                            window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                          }}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] tracking-widest h-10 mb-6"
+                        >
+                          Enviar Comprovante via WhatsApp
+                        </Button>
+                      )}
                       
                       {/* Tracking Progress In Confirmation */}
                       <div className="space-y-2 mt-4 px-6">

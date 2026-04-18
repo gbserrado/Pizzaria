@@ -236,7 +236,11 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
             <Button 
               size="sm"
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase h-10"
-              onClick={() => onUpdateStatus(order.id!, 'delivery')}
+              onClick={() => {
+                onUpdateStatus(order.id!, 'delivery');
+                const msg = `Olá ${order.customerName || ''}, seu pedido #${order.id?.slice(-6)} saiu para entrega e está a caminho! 🍕`;
+                window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+              }}
             >
               Entregar
             </Button>
@@ -275,6 +279,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
     previousOrdersCount.current = activeOrders.length;
   }, [orders]);
   const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'history' | 'finance' | 'menu' | 'settings'>('orders');
+  const [searchTerm, setSearchTerm] = useState('');
   const audioRef = useRef<HTMLAudioElement>(null);
   const ordersRef = useRef<Order[]>([]);
 
@@ -702,55 +707,43 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
         <div className="p-8">
           {activeTab === 'orders' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Column: Received */}
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-gold animate-pulse" />
-                    Novos ({orders.filter(o => o.status === 'received').length})
-                  </h2>
-                </div>
-                <div className="space-y-4">
-                  {orders.filter(o => o.status === 'received').map((order: Order) => (
-                    <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
-                  ))}
-                  {orders.filter(o => o.status === 'received').length === 0 && (
-                    <div className="h-40 border-2 border-dashed border-white/5 rounded-3xl flex items-center justify-center text-white/20 font-bold uppercase text-xs">
-                      Nenhum pedido novo
+              {['received', 'cooking', 'delivery'].map((status) => {
+                const filteredOrders = orders.filter(o => 
+                  o.status === status && 
+                  (status === 'cooking' || (new Date().getTime() - new Date(o.createdAt?.seconds * 1000 || o.createdAt).getTime()) < 12 * 60 * 60 * 1000)
+                );
+                return (
+                  <div key={status} className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
+                        <div className={cn("h-2 w-2 rounded-full", status === 'received' ? "bg-gold animate-pulse" : status === 'cooking' ? "bg-blue-500" : "bg-green-500")} />
+                        {status === 'received' ? 'Novos' : status === 'cooking' ? 'Preparando' : 'Entregando'} ({filteredOrders.length})
+                      </h2>
                     </div>
-                  )}
-                </div>
-              </div>
+                    <div className="space-y-4">
+                      {filteredOrders.length > 0 ? filteredOrders.map((order: Order) => (
+                        <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
+                      )) : (
+                        <div className="h-40 border-2 border-dashed border-white/5 rounded-3xl flex items-center justify-center text-white/20 font-bold uppercase text-xs">
+                          Nenhum pedido nesta categoria
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-              {/* Column: Cooking */}
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-blue-500" />
-                    Preparando ({orders.filter(o => o.status === 'cooking').length})
-                  </h2>
-                </div>
-                <div className="space-y-4">
-                  {orders.filter(o => o.status === 'cooking').map((order: Order) => (
-                    <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
-                  ))}
-                </div>
+          {activeTab === 'history' && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-black uppercase text-white">Todos os Pedidos</h3>
+              <div className="space-y-4">
+                {orders.slice(0, 10).map((order: Order) => (
+                  <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
+                ))}
               </div>
-
-              {/* Column: Delivery */}
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-green-500" />
-                    Entregando ({orders.filter(o => o.status === 'delivery').length})
-                  </h2>
-                </div>
-                <div className="space-y-4">
-                  {orders.filter(o => o.status === 'delivery').map((order: Order) => (
-                    <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
-                  ))}
-                </div>
-              </div>
+              <Button className="w-full bg-white/5 text-white">Carregar mais...</Button>
             </div>
           )}
 
@@ -819,20 +812,29 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
 
           {activeTab === 'history' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <h2 className="text-xl font-black uppercase italic tracking-tight">Pedidos Recentes</h2>
-                <div className="flex gap-2">
-                  <Badge variant="ghost" className="bg-green-500/10 text-green-500 border border-green-500/20">
-                    {orders.filter(o => o.status === 'completed').length} Concluídos
-                  </Badge>
-                  <Badge variant="ghost" className="bg-red-500/10 text-red-500 border border-red-500/20">
-                    {orders.filter(o => o.status === 'cancelled').length} Cancelados
-                  </Badge>
+                <div className="relative w-full max-w-sm">
+                  <Search className="absolute left-3 top-3.5 h-4 w-4 text-white/40" />
+                  <Input 
+                    placeholder="Buscar por cliente ou código..." 
+                    className="pl-10 bg-white/5 border-white/10 text-white"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map((order: Order) => (
+                {orders
+                  .filter(o => 
+                    (o.status === 'completed' || o.status === 'cancelled') && 
+                    (o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                     o.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                     o.id?.slice(-6).toLowerCase().includes(searchTerm.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map((order: Order) => (
                   <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
                 ))}
                 {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 && (

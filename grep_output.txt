@@ -1,0 +1,70 @@
+196:  const [customerInfo, setCustomerInfo] = useState({
+281:    if (deliveryType === 'delivery' && customerInfo.neighborhood) {
+282:      const fee = DELIVERY_FEES.find(f => f.name === customerInfo.neighborhood)?.fee || 0;
+287:  }, [deliveryType, customerInfo.neighborhood]);
+308:    if (customerInfo.phone && customerInfo.phone.length >= 10) {
+309:      const unsubLoyalty = onSnapshot(doc(db, 'loyalty', customerInfo.phone), (snapshot) => {
+313:      }, (error) => handleFirestoreError(error, OperationType.GET, `loyalty/${customerInfo.phone}`));
+316:  }, [customerInfo.phone]);
+449:        userId: user?.uid || `guest_${customerInfo.phone}`,
+450:        customerName: customerInfo.name,
+451:        phone: customerInfo.phone,
+463:        paymentMethod: customerInfo.paymentMethod,
+466:          ...customerInfo,
+467:          complement: customerInfo.complement || null,
+468:          observations: customerInfo.observations || null,
+469:          changeFor: customerInfo.changeFor || null
+585:      `*👤 Nome:* ${customerInfo.name}\n` +
+586:      `*📱 Tel:* ${customerInfo.phone}\n\n` +
+609:    message += `*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'pix_now' ? 'PIX (Comprovante abaixo)' : customerInfo.paymentMethod === 'card_delivery' ? 'CARTÃO (Levar maquininha)' : 'DINHEIRO'}\n`;
+611:    if (customerInfo.needChange) {
+612:      const changeValue = parseFloat(customerInfo.changeFor) - cartTotal;
+613:      message += `*💵 TROCO PARA:* R$ ${parseFloat(customerInfo.changeFor).toFixed(2)} (Troco: R$ ${changeValue.toFixed(2)})\n`;
+617:      message += `\n*📍 ENDEREÇO:* ${customerInfo.street}, ${customerInfo.number} - ${customerInfo.neighborhood}\n`;
+618:      if (customerInfo.complement) {
+619:        message += `*Ref:* ${customerInfo.complement}\n`;
+621:      const mapsQuery = encodeURIComponent(`${customerInfo.street}, ${customerInfo.number}, ${customerInfo.neighborhood}, Nova Friburgo`);
+627:    if (customerInfo.observations) {
+628:      message += `\n*📝 OBS:* ${customerInfo.observations}\n`;
+631:    if (customerInfo.paymentMethod === 'pix_now') {
+634:      message += `\n*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'card_delivery' ? 'Cartão na Entrega' : 'Dinheiro'}\nFavor confirmar o valor total e o tempo de espera para eu acertar o pagamento.`;
+1680:                            value={customerInfo.name}
+1689:                            value={customerInfo.phone}
+1722:                                <span className={cn(!customerInfo.neighborhood && "text-zinc-500")}>
+1723:                                  {customerInfo.neighborhood || "Selecione seu bairro..."}
+1747:                                            customerInfo.neighborhood === n.name ? "bg-gold text-deep-black" : "text-white/70 hover:bg-white/5 hover:text-white"
+1755:                                          {customerInfo.neighborhood === n.name && <CheckCircle2 className="h-4 w-4" />}
+1767:                              value={customerInfo.street}
+1776:                              value={customerInfo.number}
+1785:                              value={customerInfo.complement}
+1797:                          value={customerInfo.observations}
+1851:                          <span className="truncate">{deliveryType === 'delivery' ? `${customerInfo.neighborhood}, ${customerInfo.street}` : 'Retirada na Loja'}</span>
+1865:                        value={customerInfo.paymentMethod} 
+1874:                                animate={customerInfo.paymentMethod === 'cash_delivery' ? {
+1888:                        {customerInfo.paymentMethod === 'cash_delivery' && (
+1898:                                className={`h-5 w-10 rounded-full transition-all relative ${customerInfo.needChange ? 'bg-gold' : 'bg-white/10'}`}
+1901:                                  animate={{ x: customerInfo.needChange ? 20 : 4 }}
+1902:                                  className={`h-3 w-3 rounded-full absolute top-1 ${customerInfo.needChange ? 'bg-deep-black' : 'bg-white/40'}`}
+1907:                            {customerInfo.needChange && (
+1911:                                  value={customerInfo.changeFor}
+1919:                                    parseFloat(customerInfo.changeFor) < cartTotal && "border-pizza-red focus:border-pizza-red"
+1922:                                {parseFloat(customerInfo.changeFor) < cartTotal && (
+1935:                                animate={customerInfo.paymentMethod === 'card_delivery' ? {
+1954:                                animate={customerInfo.paymentMethod === 'pix_now' ? {
+1969:                      {customerInfo.paymentMethod === 'pix_now' && (
+2024:                            {deliveryType === 'delivery' ? `${customerInfo.neighborhood}, ${customerInfo.number}` : 'Retirada na Loja'}
+2030:                            {customerInfo.paymentMethod === 'cash_delivery' ? 'Dinheiro' : 
+2031:                             customerInfo.paymentMethod === 'card_delivery' ? 'Cartão' : 'PIX'}
+2036:                      {customerInfo.paymentMethod === 'pix_now' && (
+2076:                                  const customerName = customerInfo.customerName || 'Cliente';
+2115:                       {customerInfo.paymentMethod === 'pix_now' && (
+2120:                            const customerName = customerInfo.customerName || 'Cliente';
+2157:                        Obrigado, <span className="text-gold font-bold">{customerInfo.name}</span>! Seu pedido <span className="font-mono bg-white/10 px-2 py-1 rounded">#{lastOrderId?.slice(-6).toUpperCase() || '---'}</span> foi recebido.
+2180:                      {customerInfo.paymentMethod === 'pix_now' && (
+2225:                      {customerInfo.paymentMethod === 'pix_now' && (
+2271:                            !customerInfo.name || 
+2272:                            customerInfo.name.length < 3 ||
+2273:                            !customerInfo.phone || 
+2274:                            customerInfo.phone.replace(/\D/g, '').length !== 11 ||
+2275:                            (deliveryType === 'delivery' && (!customerInfo.street || !customerInfo.number || !customerInfo.neighborhood))
+2287:                            (customerInfo.paymentMethod === 'cash_delivery' && customerInfo.needChange && (!customerInfo.changeFor || parseFloat(customerInfo.changeFor) < cartTotal))
