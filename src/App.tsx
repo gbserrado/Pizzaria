@@ -945,8 +945,8 @@ export default function App() {
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest text-white/70">
-            <a href="#menu" className="hover:text-gold transition-colors">Cardápio</a>
-            <a href="#contact" className="hover:text-gold transition-colors">Contato</a>
+            <a href="/" className="hover:text-gold transition-colors" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Início</a>
+            <a href="https://wa.me/5522998487785" target="_blank" rel="noreferrer" className="hover:text-gold transition-colors">Contato</a>
           </div>
 
           <div className="flex items-center gap-4">
