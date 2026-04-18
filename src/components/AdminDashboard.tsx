@@ -45,13 +45,13 @@ import {
   getDoc,
   increment
 } from 'firebase/firestore';
-import { Order, OrderStatus, PIZZAS, Pizza, StoreConfig } from '../types';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
-import { Switch } from '../../components/ui/switch';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
+import { Order, OrderStatus, PIZZAS, Pizza, StoreConfig, DELIVERY_FEES } from '../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -278,8 +278,9 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
     }
     previousOrdersCount.current = activeOrders.length;
   }, [orders]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'history' | 'finance' | 'menu' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'history' | 'finance' | 'menu' | 'settings' | 'deliveries'>('orders');
   const [searchTerm, setSearchTerm] = useState('');
+  const [deliveryFees, setDeliveryFees] = useState<{name: string, fee: number}[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
   const ordersRef = useRef<Order[]>([]);
 
@@ -303,6 +304,14 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
           const configDoc = await getDoc(doc(db, 'config', 'store'));
           if (!configDoc.exists()) {
             await setDoc(doc(db, 'config', 'store'), { lojaAberta: true });
+          }
+          
+          const deliveryDoc = await getDoc(doc(db, 'config', 'delivery'));
+          if (deliveryDoc.exists()) {
+            setDeliveryFees(deliveryDoc.data().fees);
+          } else {
+            // Fallback to types if firebase doesn't have data
+            setDeliveryFees(DELIVERY_FEES);
           }
         } catch (e) {
           console.error("Initialization error:", e);
@@ -650,6 +659,13 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
             className={cn("p-3 rounded-xl transition-all", activeTab === 'menu' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
           >
             <PizzaIcon className="h-6 w-6" />
+          </button>
+          <button 
+            onClick={() => setActiveTab('deliveries')}
+            className={cn("p-3 rounded-xl transition-all", activeTab === 'deliveries' ? "bg-gold text-deep-black" : "text-white/40 hover:text-white hover:bg-white/5")}
+            title="Taxas de Entrega"
+          >
+            <Truck className="h-6 w-6" />
           </button>
           <button 
             onClick={() => setActiveTab('settings')}
@@ -1036,6 +1052,37 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
                   </CardHeader>
                 </Card>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'deliveries' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black uppercase text-white">Taxas de Entrega</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {deliveryFees.map((fee, idx) => (
+                  <div key={idx} className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-center justify-between">
+                    <span className="font-bold text-white text-sm">{fee.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        type="number"
+                        value={fee.fee}
+                        onChange={(e) => {
+                          const newFees = [...deliveryFees];
+                          newFees[idx].fee = parseFloat(e.target.value);
+                          setDeliveryFees(newFees);
+                        }}
+                        className="w-20 bg-white/5 border-white/10 text-white font-bold h-9"
+                      />
+                      <Button onClick={() => {
+                        setDoc(doc(db, 'config', 'delivery'), { fees: deliveryFees }, { merge: true });
+                        toast.success('Taxa atualizada!');
+                      }} size="sm" className="bg-gold text-deep-black font-black uppercase tracking-widest text-[10px]">Salvar</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
