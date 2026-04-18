@@ -2308,12 +2308,37 @@ export default function App() {
               <p className="text-white/50 text-sm leading-relaxed max-w-xs">
                 A melhor pizzaria de Conselheiro Paulino. Ingredientes selecionados e massa artesanal feita com amor.
               </p>
-              <div className="flex gap-4">
-                <a href="https://www.instagram.com/pizzariaelanchoneteouropreto/" target="_blank" rel="noreferrer" className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-gold hover:text-deep-black transition-all border border-white/5">
-                  <Instagram className="h-6 w-6" />
+              <div className="space-y-3">
+                <a 
+                  href="https://wa.me/5522998487785" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-3 text-sm text-white/70 hover:text-gold transition-colors"
+                >
+                  <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+                    <MessageCircle className="h-4 w-4" />
+                  </div>
+                  (22) 99848-7785
                 </a>
-                <a href="tel:22998487785" className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-gold hover:text-deep-black transition-all border border-white/5">
-                  <Phone className="h-6 w-6" />
+                <a 
+                  href="tel:22998487785" 
+                  className="flex items-center gap-3 text-sm text-white/70 hover:text-gold transition-colors"
+                >
+                  <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+                    <Phone className="h-4 w-4" />
+                  </div>
+                  (22) 99848-7785
+                </a>
+                <a 
+                  href="https://www.instagram.com/pizzariaelanchoneteouropreto/" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-3 text-sm text-white/70 hover:text-gold transition-colors"
+                >
+                  <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+                    <Instagram className="h-4 w-4" />
+                  </div>
+                  @pizzariaelanchoneteouropreto
                 </a>
               </div>
             </div>
