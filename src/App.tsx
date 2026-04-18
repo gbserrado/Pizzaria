@@ -166,6 +166,19 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (authUser) => {
+      setUser(authUser);
+      if (!authUser) {
+        setIsLoginOpen(true);
+      } else {
+        setIsLoginOpen(false);
+      }
+    });
+    return () => unsub();
+  }, []);
   
   const [selectedPizza, setSelectedPizza] = useState<Pizza | null>(null);
   const [isHalfAndHalf, setIsHalfAndHalf] = useState(false);
