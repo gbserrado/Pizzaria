@@ -1172,9 +1172,9 @@ export default function App() {
               </div>
             </div>
 
-            <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full flex flex-col">
-              <div className="sticky top-16 md:top-20 z-40 bg-deep-black/95 backdrop-blur-md py-4 mb-12 border-b border-white/5">
-                <TabsList className="w-full bg-white/5 border border-white/10 p-1 h-auto flex-nowrap overflow-x-auto justify-start md:justify-center scrollbar-hide snap-x snap-mandatory">
+            <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full flex flex-col pb-24 md:pb-0">
+              <div className="hidden md:block sticky top-20 z-40 bg-deep-black/95 backdrop-blur-md py-4 mb-12 border-b border-white/5">
+                <TabsList className="w-full bg-white/5 border border-white/10 p-1 h-auto flex-nowrap overflow-x-auto justify-center scrollbar-hide snap-x snap-mandatory">
                   {[
                     { id: 'Destaques', label: 'Destaques', icon: Star },
                     { id: 'Tradicional', label: 'Tradicional', icon: PizzaIcon },
@@ -1187,13 +1187,42 @@ export default function App() {
                     <TabsTrigger 
                       key={cat.id} 
                       value={cat.id}
-                      className="px-6 md:px-8 py-2.5 md:py-3 rounded-md data-[state=active]:bg-gold data-[state=active]:text-deep-black font-black uppercase tracking-tighter transition-all text-xs md:text-sm whitespace-nowrap snap-start text-white/50 hover:text-white flex items-center gap-2"
+                      className="px-8 py-3 rounded-md data-[state=active]:bg-gold data-[state=active]:text-deep-black font-black uppercase tracking-tighter transition-all text-sm whitespace-nowrap snap-start text-white/50 hover:text-white flex items-center gap-2"
                     >
-                      <cat.icon className="h-3 w-3 md:h-4 md:w-4" />
+                      <cat.icon className="h-4 w-4" />
                       {cat.label}
                     </TabsTrigger>
                   ))}
                 </TabsList>
+              </div>
+
+              {/* Mobile Bottom Navigation Bar */}
+              <div className="md:hidden fixed bottom-0 left-0 right-0 z-[45] bg-deep-black border-t border-white/10 pb-safe shadow-2xl">
+                <div className="flex w-full overflow-x-auto px-2 py-2 gap-1 scrollbar-hide snap-x">
+                  {[
+                    { id: 'Destaques', label: 'Destaques', icon: Star },
+                    { id: 'Tradicional', label: 'Tradicional', icon: PizzaIcon },
+                    { id: 'Especial', label: 'Especial', icon: Star },
+                    { id: 'Premium', label: 'Premium', icon: Ticket },
+                    { id: 'Doce', label: 'Doces', icon: Star },
+                    { id: 'Sanduíches', label: 'Lanches', icon: Utensils },
+                    { id: 'Bebidas', label: 'Bebidas', icon: Beer }
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`flex flex-col items-center justify-center gap-1 min-w-[76px] p-2 rounded-xl transition-all snap-start
+                        ${activeCategory === cat.id 
+                          ? 'bg-gold/10 text-gold' 
+                          : 'bg-transparent text-white/40 hover:text-white hover:bg-white/5'
+                        }
+                      `}
+                    >
+                      <cat.icon className={`h-5 w-5 ${activeCategory === cat.id ? 'fill-gold/20' : ''}`} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {['Destaques', 'Tradicional', 'Especial', 'Premium', 'Doce', 'Sanduíches', 'Bebidas'].map((category) => (
@@ -1254,7 +1283,7 @@ export default function App() {
                           <Card 
                             className={`
                               bg-white/[0.05] border-white/10 overflow-hidden hover:border-gold/30 transition-all duration-500 group cursor-pointer relative
-                              ${isMobile ? 'flex h-32' : 'flex flex-col h-full'}
+                              ${isMobile ? 'flex flex-row min-h-[130px]' : 'flex flex-col h-full'}
                               ${!pizza.available ? 'opacity-50 grayscale cursor-not-allowed' : ''}
                             `}
                             onClick={() => pizza.available && setSelectedPizza(pizza)}
@@ -1262,12 +1291,12 @@ export default function App() {
                             {/* Image Container */}
                             <div className={`
                               relative overflow-hidden
-                              ${isMobile ? 'w-32 shrink-0' : 'h-64'}
+                              ${isMobile ? 'w-32 shrink-0 h-full' : 'h-64'}
                             `}>
                               <ImageWithSkeleton 
                                 src={pizza.image} 
                                 alt={pizza.name} 
-                                className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                                className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${isMobile ? 'absolute inset-0' : ''}`}
                                 referrerPolicy="no-referrer"
                               />
                               <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
@@ -1293,12 +1322,12 @@ export default function App() {
                             </div>
 
                             {/* Content */}
-                            <div className={`flex flex-col flex-1 ${isMobile ? 'p-4 justify-between' : 'p-6'}`}>
+                            <div className={`flex flex-col flex-1 min-w-0 ${isMobile ? 'p-4 justify-center gap-1' : 'p-6'}`}>
                               <div className="space-y-1">
                                 <div className="flex justify-between items-start gap-2">
                                   <CardTitle className={`
-                                    font-black group-hover:text-gold transition-colors uppercase italic tracking-tight
-                                    ${isMobile ? 'text-lg leading-tight' : 'text-xl'}
+                                    font-black group-hover:text-gold transition-colors uppercase italic tracking-tight truncate
+                                    ${isMobile ? 'text-base leading-tight w-full pr-6' : 'text-xl'}
                                   `}>
                                     {pizza.name}
                                   </CardTitle>
@@ -1310,14 +1339,14 @@ export default function App() {
                                 </div>
                                 
                                 <CardDescription className={`
-                                  text-white/60 leading-relaxed font-medium
+                                  text-white/60 leading-snug font-medium
                                   ${isMobile ? 'text-[10px] line-clamp-2' : 'text-xs mt-2'}
                                 `}>
                                   {pizza.description}
                                 </CardDescription>
                               </div>
 
-                              <div className="flex items-center justify-between mt-auto">
+                              <div className="flex items-center justify-between mt-auto pt-2">
                                 {isMobile ? (
                                   <span className="text-gold font-black text-base">
                                     R$ {pizza.basePrice.toFixed(2)}
@@ -1331,9 +1360,9 @@ export default function App() {
                             </div>
 
                             {isMobile && (
-                              <div className="absolute right-3 bottom-3">
-                                <div className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center border border-gold/20 group-hover:bg-gold group-hover:text-deep-black transition-all">
-                                  <Plus className="h-5 w-5" />
+                              <div className="absolute right-3 top-3">
+                                <div className="h-7 w-7 rounded-full bg-white/10 flex items-center justify-center border border-white/20 group-hover:bg-gold group-hover:border-gold group-hover:text-deep-black transition-all">
+                                  <Plus className="h-4 w-4 text-white group-hover:text-deep-black" />
                                 </div>
                               </div>
                             )}
@@ -1407,7 +1436,7 @@ export default function App() {
         <motion.div 
           initial={{ scale: 0, y: 20 }}
           animate={{ scale: 1, y: 0 }}
-          className="fixed bottom-6 right-6 z-[60]"
+          className="fixed bottom-24 right-4 z-[40]"
         >
           <Button 
             onClick={() => setIsCartOpen(true)}

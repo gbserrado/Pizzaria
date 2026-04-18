@@ -36,6 +36,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Global deny by default
+    match /{document=**} { allow read, write: if false; }
+
     // ===============================================================
     // Helper Functions
     // ===============================================================
@@ -44,57 +47,41 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.userId;
-    }
-
     function isAdmin() {
       return isAuthenticated() && 
         (request.auth.token.email.matches("(?i)Gabriel06nf@gmail.com") ||
-         request.auth.token.email.matches("(?i)admin@ouropreto.com") ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+         request.auth.token.email.matches("(?i)admin@ouropreto.com"));
     }
 
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email']) &&
-             data.uid is string &&
-             data.email is string &&
-             data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-
-    function isValidOrder(data) {
-      return data.keys().hasAll(['userId', 'items', 'total', 'status', 'createdAt']) &&
-             data.userId == request.auth.uid &&
-             data.items is list &&
-             data.total is number &&
-             data.status in ['received', 'cooking', 'delivery', 'completed', 'cancelled'] &&
-             data.createdAt is timestamp;
-    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
 
     // ===============================================================
     // Rules
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
-                      request.resource.data.email == resource.data.email;
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow update: if isAuthenticated() && request.auth.uid == userId && incoming().uid == existing().uid && incoming().email == existing().email;
+      allow create: if isAuthenticated() && request.auth.uid == userId && incoming().uid == request.auth.uid;
     }
 
     match /orders/{orderId} {
-      allow read: if isDocOwner() || isAdmin();
-      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
-      allow update: if isAdmin(); // Only admins can update order status
+      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      
+      // Strict creation validation: Prevents missing keys, fake totals, spoofed user IDs
+      allow create: if isAuthenticated() &&
+        incoming().keys().hasAll(['userId', 'items', 'total', 'status']) &&
+        incoming().userId == request.auth.uid &&
+        incoming().items is list &&
+        incoming().items.size() <= 50 &&
+        incoming().total is number &&
+        incoming().total >= 0 &&
+        incoming().status == 'received'; // Initial state strictly protected
+        
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /coupons/{couponId} {
@@ -103,17 +90,17 @@ service cloud.firestore {
     }
 
     match /config/{configId} {
-      allow read: if true; // Anyone can see if store is open
+      allow read: if true; 
       allow write: if isAdmin();
     }
 
     match /menu/{pizzaId} {
-      allow read: if true; // Anyone can see menu availability
+      allow read: if true; 
       allow write: if isAdmin();
     }
 
     match /loyalty/{phone} {
-      allow read: if true; // Anyone can see their points (scoped by phone)
+      allow read: if true; 
       allow write: if isAdmin();
     }
   }
