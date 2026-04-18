@@ -205,77 +205,81 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
           </div>
         </div>
 
-        <div className="flex gap-2">
-          {/* New WhatsApp Action */}
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="flex-1 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase h-10 transition-all"
-            onClick={() => {
-              const address = `${order.address?.street || ''}, ${order.address?.number || ''} - ${order.address?.neighborhood || ''}`;
-              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, Nova Friburgo`)}`;
-              const msg = `📍 ENTREGA NOVA
+        <div className="flex flex-col gap-2">
+          {/* WhatsApp Actions */}
+          <div className="flex gap-2">
+            <Button 
+                variant="ghost" 
+                size="sm"
+                className="flex-1 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase h-10 transition-all"
+                onClick={() => {
+                const address = `${order.address?.street || ''}, ${order.address?.number || ''} - ${order.address?.neighborhood || ''}`;
+                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, Nova Friburgo`)}`;
+                const msg = `📍 ENTREGA NOVA
 
 Cliente: ${order.customerName || 'Cliente'}
 Endereço: ${address}
 Pagamento: ${order.paymentMethod === 'pix_now' ? 'PIX (Já pago)' : 'A receber'}
 Link do Maps: ${mapsUrl}`;
-              
-              window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
-            }}
-          >
-            <span className="text-green-500 mr-2">🛵</span> Motoboy
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className={cn(
-              "flex-1 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase h-10 transition-all",
-              (order.status === 'completed' || order.status === 'cancelled') ? "w-full" : ""
-            )}
-            onClick={() => {
-              const msg = `Olá ${order.customerName || ''}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
-              window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-            }}
-          >
-            <MessageCircle className="h-4 w-4 mr-2 text-green-500" />
-            Cliente
-          </Button>
-          
-          {order.status === 'received' && (
-            <Button 
-              size="sm"
-              className={cn("flex-1 text-[10px] font-black uppercase h-10", isPanic ? "bg-red-600 hover:bg-red-700 text-white" : "bg-gold hover:bg-gold-dark text-deep-black")}
-              onClick={() => onUpdateStatus(order.id!, 'cooking')}
+                
+                window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                }}
             >
-              Produzir
+                <span className="text-green-500 mr-2">🛵</span> Motoboy
             </Button>
-          )}
-          
-          {order.status === 'cooking' && (
+            
             <Button 
-              size="sm"
-              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase h-10"
-              onClick={() => {
-                onUpdateStatus(order.id!, 'delivery');
-                const msg = `Olá ${order.customerName || ''}, seu pedido #${order.id?.slice(-6)} saiu para entrega e está a caminho! 🍕`;
+                variant="ghost" 
+                size="sm"
+                className={cn(
+                "flex-1 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase h-10 transition-all",
+                (order.status === 'completed' || order.status === 'cancelled') ? "w-full" : ""
+                )}
+                onClick={() => {
+                const msg = `Olá ${order.customerName || ''}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
                 window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-              }}
+                }}
             >
-              Entregar
+                <MessageCircle className="h-4 w-4 mr-2 text-green-500" />
+                Cliente
             </Button>
-          )}
+          </div>
 
-          {order.status === 'delivery' && (
-            <Button 
-              size="sm"
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase h-10"
-              onClick={() => onUpdateStatus(order.id!, 'completed', order.phone)}
-            >
-              Concluir
-            </Button>
-          ) /* Fixed structure */}
+          <div className="flex gap-2">
+            {order.status === 'received' && (
+                <Button 
+                size="sm"
+                className={cn("flex-1 text-[10px] font-black uppercase h-10", isPanic ? "bg-red-600 hover:bg-red-700 text-white" : "bg-gold hover:bg-gold-dark text-deep-black")}
+                onClick={() => onUpdateStatus(order.id!, 'cooking')}
+                >
+                Produzir
+                </Button>
+            )}
+            
+            {order.status === 'cooking' && (
+                <Button 
+                size="sm"
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase h-10"
+                onClick={() => {
+                    onUpdateStatus(order.id!, 'delivery');
+                    const msg = `Olá ${order.customerName || ''}, seu pedido #${order.id?.slice(-6)} saiu para entrega e está a caminho! 🍕`;
+                    window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                }}
+                >
+                Entregar
+                </Button>
+            )}
+            
+            {order.status === 'delivery' && (
+                <Button 
+                size="sm"
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase h-10"
+                onClick={() => onUpdateStatus(order.id!, 'completed')}
+                >
+                Concluir
+                </Button>
+            )}
+          </div>
         </div>
       </div>
     </Card>
