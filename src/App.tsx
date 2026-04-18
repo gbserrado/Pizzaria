@@ -58,6 +58,7 @@ import { cn } from '@/lib/utils';
 import { PIZZAS, SIZES, EXTRA_INGREDIENTS, NEIGHBORHOODS, DELIVERY_FEES, type Pizza, type PizzaSize, type Order, type CartItem, type OrderStatus, type StoreConfig, type PaymentMethod } from './types';
 import { auth, db } from './firebase';
 import AdminDashboardComponent from './components/AdminDashboard';
+import DeliveryDashboardComponent from './components/DeliveryDashboard';
 import { 
   onAuthStateChanged, 
   signOut,
@@ -168,6 +169,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAdminView = location.pathname.startsWith('/admin');
+  const isDeliveryView = location.pathname.startsWith('/entregas');
 
   const [user, setUser] = useState<any>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -958,6 +960,8 @@ export default function App() {
             <p className="text-white/60">Redirecionando para login...</p>
           </div>
         )
+      ) : isDeliveryView ? (
+        <DeliveryDashboardComponent />
       ) : (
         <>
           {/* Header */}
