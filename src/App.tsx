@@ -165,6 +165,10 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 };
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isAdminView = location.pathname.startsWith('/admin');
+
   const [user, setUser] = useState<any>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -182,6 +186,12 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+  
+  useEffect(() => {
+    if (isAdminView && !user) {
+      setIsLoginOpen(true);
+    }
+  }, [isAdminView, user]);
   
   const [selectedPizza, setSelectedPizza] = useState<Pizza | null>(null);
   const [isHalfAndHalf, setIsHalfAndHalf] = useState(false);
@@ -222,9 +232,6 @@ export default function App() {
     paymentMethod: 'cash_delivery' as PaymentMethod
   });
 
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isAdminView = location.pathname.startsWith('/admin');
   const [storeConfig, setStoreConfig] = useState<StoreConfig>({ lojaAberta: true });
   const [menuStatus, setMenuStatus] = useState<Record<string, boolean>>({});
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
@@ -934,10 +941,23 @@ export default function App() {
       )}
 
       {isAdminView ? (
-        <AdminDashboardComponent 
-          storeConfig={storeConfig} 
-          menuStatus={menuStatus} 
-        />
+        user ? (
+          (user.email === 'Gabriel06nf@gmail.com' || user.email === 'admin@ouropreto.com') ? (
+            <AdminDashboardComponent 
+              storeConfig={storeConfig} 
+              menuStatus={menuStatus} 
+            />
+          ) : (
+            <div className="min-h-screen bg-deep-black flex flex-col items-center justify-center p-6 text-center text-white">
+              <h2 className="text-2xl font-black uppercase text-red-500 mb-4">Acesso restrito apenas para administradores</h2>
+              <Button onClick={() => window.location.href = '/'} className="bg-gold text-deep-black font-black uppercase">Voltar ao site</Button>
+            </div>
+          )
+        ) : (
+          <div className="min-h-screen bg-deep-black flex items-center justify-center p-6 text-white text-center">
+            <p className="text-white/60">Redirecionando para login...</p>
+          </div>
+        )
       ) : (
         <>
           {/* Header */}

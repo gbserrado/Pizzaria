@@ -206,6 +206,27 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
         </div>
 
         <div className="flex gap-2">
+          {/* New WhatsApp Action */}
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="flex-1 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase h-10 transition-all"
+            onClick={() => {
+              const address = `${order.address?.street || ''}, ${order.address?.number || ''} - ${order.address?.neighborhood || ''}`;
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, Nova Friburgo`)}`;
+              const msg = `📍 ENTREGA NOVA
+
+Cliente: ${order.customerName || 'Cliente'}
+Endereço: ${address}
+Pagamento: ${order.paymentMethod === 'pix_now' ? 'PIX (Já pago)' : 'A receber'}
+Link do Maps: ${mapsUrl}`;
+              
+              window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+            }}
+          >
+            <span className="text-green-500 mr-2">🛵</span> Motoboy
+          </Button>
+          
           <Button 
             variant="ghost" 
             size="sm"
@@ -219,7 +240,7 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
             }}
           >
             <MessageCircle className="h-4 w-4 mr-2 text-green-500" />
-            WhatsApp
+            Cliente
           </Button>
           
           {order.status === 'received' && (
@@ -362,6 +383,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Login attempt with password:', password);
     if (password === ADMIN_PASSWORD) {
       // Check if current user is already an admin
       const currentUser = auth.currentUser;
