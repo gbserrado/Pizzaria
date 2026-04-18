@@ -286,7 +286,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user && (user.email === 'Gabriel06nf@gmail.com' || user.email === 'admin@ouropreto.com')) {
+      if (user) {
         setIsAuthenticated(true);
       }
     });
@@ -451,12 +451,8 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      if (result.user.email === 'Gabriel06nf@gmail.com' || result.user.email === 'admin@ouropreto.com') {
-        setIsAuthenticated(true);
-        toast.success('Acesso concedido!');
-      } else {
-        toast.error('Conta não autorizada para acesso admin.');
-      }
+      setIsAuthenticated(true);
+      toast.success('Acesso concedido!');
     } catch (error: any) {
       toast.error('Erro ao conectar com o Google.');
     }
