@@ -103,7 +103,7 @@ const ImageWithSkeleton = ({ src, alt, className, ...props }: any) => {
         alt={alt}
         onLoad={() => setLoaded(true)}
         className={cn(
-          "transition-all duration-700",
+          "transition-all duration-700 w-full h-full object-cover",
           loaded ? "opacity-100 scale-100" : "opacity-0 scale-110",
           className
         )}
@@ -1223,12 +1223,12 @@ export default function App() {
                             {/* Image Container */}
                             <div className={`
                               relative overflow-hidden
-                              ${isMobile ? 'w-32 shrink-0 h-full' : 'h-64'}
+                              ${isMobile ? 'w-24 shrink-0 h-24 rounded-l-lg' : 'h-64'}
                             `}>
                               <ImageWithSkeleton 
                                 src={pizza.image} 
                                 alt={pizza.name} 
-                                className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${isMobile ? 'absolute inset-0' : ''}`}
+                                className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
                                 referrerPolicy="no-referrer"
                               />
                               <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
