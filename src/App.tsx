@@ -167,6 +167,9 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (authUser) => {
@@ -1489,12 +1492,57 @@ export default function App() {
       <Dialog open={isLoginOpen} onOpenChange={() => {}}>
         <DialogContent className="bg-graphite border-gold/20 text-white sm:max-w-[400px]" hideCloseButton>
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-gold uppercase italic text-center">🔐 Bem-vindo à Ouro Preto</DialogTitle>
+            <DialogTitle className="text-2xl font-black text-gold uppercase italic text-center">
+              {authMode === 'login' ? '🔐 Bem-vindo à Ouro Preto' : '📝 Crie sua conta'}
+            </DialogTitle>
           </DialogHeader>
-          <div className="py-6 space-y-4 text-center">
-            <p className="text-white/60">Para continuar aproveitando nossas ofertas, faça login ou crie sua conta.</p>
+          <div className="py-6 space-y-4">
+            <Input 
+              placeholder="E-mail" 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-white/5 border-white/10"
+            />
+            <Input 
+              placeholder="Senha" 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-white/5 border-white/10"
+            />
             <Button 
               className="w-full bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-12"
+              onClick={async () => {
+                try {
+                  if (authMode === 'login') {
+                    await signInWithEmailAndPassword(auth, email, password);
+                  } else {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                  }
+                  setIsLoginOpen(false);
+                } catch (e) {
+                  console.error(e);
+                  toast.error("Erro na autenticação. Verifique os dados.");
+                }
+              }}
+            >
+              {authMode === 'login' ? 'Entrar' : 'Cadastrar'}
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full text-white/50 hover:text-white"
+              onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+            >
+              {authMode === 'login' ? 'Criar uma conta' : 'Já tenho conta'}
+            </Button>
+            <div className="relative flex items-center py-2">
+              <div className="flex-grow border-t border-white/10"></div>
+              <span className="flex-shrink mx-4 text-white/20 text-xs">ou</span>
+              <div className="flex-grow border-t border-white/10"></div>
+            </div>
+            <Button 
+              className="w-full bg-white/10 hover:bg-white/20 text-white font-black uppercase tracking-widest h-12"
               onClick={async () => {
                 const provider = new GoogleAuthProvider();
                 try {
@@ -1502,7 +1550,7 @@ export default function App() {
                   setIsLoginOpen(false);
                 } catch (e) {
                   console.error(e);
-                  toast.error("Erro ao fazer login");
+                  toast.error("Erro ao fazer login com Google");
                 }
               }}
             >
