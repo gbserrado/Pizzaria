@@ -181,11 +181,7 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (authUser) => {
       setUser(authUser);
-      if (!authUser) {
-        setIsLoginOpen(true);
-      } else {
-        setIsLoginOpen(false);
-      }
+      // Removed automatic setIsLoginOpen(true) to allow guest browsing
     });
     return () => unsub();
   }, []);
@@ -995,6 +991,20 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              className="border border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full h-10 w-10 p-0 transition-all"
+              onClick={() => {
+                if (user) {
+                  setIsOrdersOpen(true);
+                } else {
+                  setIsLoginOpen(true);
+                }
+              }}
+            >
+              <User className="h-5 w-5" />
+            </Button>
+
             <motion.div
               animate={isCartBouncing ? { scale: [1, 1.3, 1], rotate: [0, -10, 10, 0] } : {}}
               transition={{ duration: 0.4 }}
@@ -1517,15 +1527,15 @@ export default function App() {
         </DialogContent>
       </Dialog>
       
-      {/* Mandatory Login Modal */}
-      <Dialog open={isLoginOpen} onOpenChange={() => {}}>
-        <DialogContent className="bg-graphite border-gold/20 text-white sm:max-w-[400px]" hideCloseButton>
+      {/* Optional Login Modal */}
+      <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
+        <DialogContent className="bg-graphite border-gold/20 text-white sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-gold uppercase italic text-center">
               {authMode === 'login' ? '🔐 Bem-vindo à Ouro Preto' : '📝 Crie sua conta'}
             </DialogTitle>
           </DialogHeader>
-          <div className="py-6 space-y-4">
+          <div className="py-6 space-y-4 text-center">
             <Input 
               placeholder="E-mail" 
               type="email" 
@@ -1585,6 +1595,13 @@ export default function App() {
             >
               Entrar com Google
             </Button>
+            
+            <button 
+              onClick={() => setIsLoginOpen(false)}
+              className="text-[10px] text-white/30 hover:text-gold uppercase font-black transition-colors"
+            >
+              Continuar como visitante
+            </button>
           </div>
         </DialogContent>
       </Dialog>
