@@ -246,6 +246,16 @@ Link do Maps: ${mapsUrl}`;
           </div>
 
           <div className="flex gap-2">
+            {order.status === 'awaiting_payment' && (
+                <Button 
+                size="sm"
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase h-10"
+                onClick={() => onUpdateStatus(order.id!, 'received')}
+                >
+                Confirmar
+                </Button>
+            )}
+
             {order.status === 'received' && (
                 <Button 
                 size="sm"
@@ -744,18 +754,18 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
 
         <div className="p-8">
           {activeTab === 'orders' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {['received', 'cooking', 'delivery'].map((status) => {
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              {['awaiting_payment', 'received', 'cooking', 'delivery'].map((status) => {
                 const filteredOrders = orders.filter(o => 
                   o.status === status && 
-                  (status === 'cooking' || (new Date().getTime() - new Date(o.createdAt?.seconds * 1000 || o.createdAt).getTime()) < 12 * 60 * 60 * 1000)
+                  (status === 'cooking' || status === 'awaiting_payment' || (new Date().getTime() - new Date(o.createdAt?.seconds * 1000 || o.createdAt).getTime()) < 12 * 60 * 60 * 1000)
                 );
                 return (
                   <div key={status} className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h2 className="text-sm font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
-                        <div className={cn("h-2 w-2 rounded-full", status === 'received' ? "bg-gold animate-pulse" : status === 'cooking' ? "bg-blue-500" : "bg-green-500")} />
-                        {status === 'received' ? 'Novos' : status === 'cooking' ? 'Preparando' : 'Entregando'} ({filteredOrders.length})
+                        <div className={cn("h-2 w-2 rounded-full", status === 'awaiting_payment' ? "bg-red-500" : status === 'received' ? "bg-gold animate-pulse" : status === 'cooking' ? "bg-blue-500" : "bg-green-500")} />
+                        {status === 'awaiting_payment' ? 'Aguardando' : status === 'received' ? 'Novos' : status === 'cooking' ? 'Preparando' : 'Entregando'} ({filteredOrders.length})
                       </h2>
                     </div>
                     <div className="space-y-4">

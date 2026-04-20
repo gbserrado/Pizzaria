@@ -480,7 +480,7 @@ export default function App() {
           price: Number(item.totalPrice) || 0
         })),
         total: Number(cartTotal) || 0,
-        status: 'received',
+        status: customerInfo.paymentMethod === 'pix_now' ? 'awaiting_payment' : 'received',
         deliveryType,
         paymentMethod: customerInfo.paymentMethod,
         deliveryFee: Number(deliveryFee) || 0,

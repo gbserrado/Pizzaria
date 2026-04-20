@@ -23,7 +23,7 @@ export interface CartItem {
   totalPrice: number;
 }
 
-export type OrderStatus = 'received' | 'cooking' | 'delivery' | 'completed' | 'cancelled';
+export type OrderStatus = 'awaiting_payment' | 'received' | 'cooking' | 'delivery' | 'completed' | 'cancelled';
 
 export type PaymentMethod = 'cash_delivery' | 'card_delivery' | 'pix_now';
 
