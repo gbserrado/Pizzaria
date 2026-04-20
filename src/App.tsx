@@ -1769,6 +1769,24 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
                 {checkoutStep === 'cart' && (
                   <div className="space-y-6">
+                    {cart.length > 0 && cartSubtotal < MIN_ORDER_VALUE && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="p-5 bg-pizza-red border-2 border-white/10 rounded-3xl flex flex-col items-center gap-3 mt-2 shadow-[0_10px_30px_rgba(233,63,63,0.3)]"
+                      >
+                        <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                          <AlertCircle className="h-6 w-6 text-white animate-bounce" />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="text-sm font-black uppercase tracking-widest text-white">Ops! Falta pouco</p>
+                          <p className="text-[10px] text-white/80 font-bold uppercase tracking-tight max-w-[200px]">
+                            O valor mínimo em produtos é <span className="text-white underline">R$ {MIN_ORDER_VALUE.toFixed(2)}</span>. 
+                            Faltam apenas <span className="bg-white text-pizza-red px-1 rounded">R$ {(MIN_ORDER_VALUE - cartSubtotal).toFixed(2)}</span>.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
                     {cart.length === 0 ? (
                       <div className="h-[50vh] flex flex-col items-center justify-center text-center space-y-6">
                         <div className="relative">
@@ -2567,18 +2585,17 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                       
                       {checkoutStep === 'cart' && (
                         <div className="flex flex-col gap-2">
-                          {cartTotal < MIN_ORDER_VALUE && (
+                          {cartSubtotal < MIN_ORDER_VALUE && (
                             <p className="text-[9px] font-black uppercase tracking-widest text-pizza-red text-center animate-pulse mb-1">
-                              Pedido mínimo: R$ {MIN_ORDER_VALUE.toFixed(2)}
-                              <span className="block text-[8px] opacity-60">Faltam R$ {(MIN_ORDER_VALUE - cartTotal).toFixed(2)}</span>
+                              Pedido mínimo (Produtos): R$ {MIN_ORDER_VALUE.toFixed(2)}
                             </p>
                           )}
                           <Button 
-                            disabled={cartTotal < MIN_ORDER_VALUE}
+                            disabled={cartSubtotal < MIN_ORDER_VALUE}
                             onClick={() => setCheckoutStep('address')}
                             className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group disabled:opacity-30 disabled:cursor-not-allowed"
                           >
-                            {cartTotal < MIN_ORDER_VALUE ? 'VALOR MÍNIMO R$ 30' : (
+                            {cartSubtotal < MIN_ORDER_VALUE ? 'ABAIXO DO MÍNIMO' : (
                               <>ENTREGA <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" /></>
                             )}
                           </Button>
