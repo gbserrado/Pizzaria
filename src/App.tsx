@@ -34,7 +34,8 @@ import {
   Beer,
   AlertCircle,
   CheckCircle2,
-  Utensils
+  Utensils,
+  Lock
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -944,14 +945,18 @@ export default function App() {
 
       {isAdminView ? (
         user ? (
-          (user.email === 'Gabriel06nf@gmail.com' || user.email === 'admin@ouropreto.com') ? (
+          (['gabriel06nf@gmail.com', 'admin@ouropreto.com'].includes(user.email?.toLowerCase() || '')) ? (
             <AdminDashboardComponent 
               storeConfig={storeConfig} 
               menuStatus={menuStatus} 
             />
           ) : (
             <div className="min-h-screen bg-deep-black flex flex-col items-center justify-center p-6 text-center text-white">
-              <h2 className="text-2xl font-black uppercase text-red-500 mb-4">Acesso restrito apenas para administradores</h2>
+              <div className="bg-red-500/10 p-4 rounded-2xl border border-red-500/20 mb-6">
+                <Lock className="h-12 w-12 text-red-500 mx-auto mb-2" />
+                <h2 className="text-2xl font-black uppercase text-red-500">Acesso negado</h2>
+                <p className="text-white/60 mt-2">O e-mail <span className="text-white font-bold">{user.email}</span> não tem permissão de administrador.</p>
+              </div>
               <Button onClick={() => window.location.href = '/'} className="bg-gold text-deep-black font-black uppercase">Voltar ao site</Button>
             </div>
           )
