@@ -203,6 +203,18 @@ export default function App() {
     size: PizzaSize;
     extras: string[];
   }>({ size: 'Média', extras: [] });
+
+  // Reset customization when selected pizza changes
+  useEffect(() => {
+    if (selectedPizza) {
+      setIsHalfAndHalf(false);
+      setSecondPizza(null);
+      setCustomization({ 
+        size: selectedPizza.category === 'Bebidas' || selectedPizza.category === 'Sanduíches' ? 'Média' : 'Média', 
+        extras: [] 
+      });
+    }
+  }, [selectedPizza]);
   const [isMobile, setIsMobile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -431,7 +443,7 @@ export default function App() {
 
     let itemPrice = selectedPizza?.basePrice || 0;
     
-    if (selectedPizza?.category !== 'Bebidas') {
+    if (selectedPizza?.category !== 'Bebidas' && selectedPizza?.category !== 'Sanduíches') {
       const sizeMultiplier = SIZES.find(s => s.label === customization.size)?.multiplier || 1;
       
       // Half and half logic: price of the more expensive one
@@ -451,7 +463,7 @@ export default function App() {
       id: Math.random().toString(36).substr(2, 9),
       pizza: selectedPizza,
       pizza2: isHalfAndHalf ? (secondPizza || undefined) : undefined,
-      size: selectedPizza.category !== 'Bebidas' ? customization.size : undefined,
+      size: (selectedPizza.category !== 'Bebidas' && selectedPizza.category !== 'Sanduíches') ? customization.size : undefined,
       extras: [...customization.extras],
       quantity: 1,
       totalPrice: itemPrice
@@ -460,7 +472,7 @@ export default function App() {
     setCart(prev => [...prev, newItem]);
     
     // Redirect to drinks if a pizza was added
-    if (selectedPizza.category !== 'Bebidas') {
+    if (selectedPizza.category !== 'Bebidas' && selectedPizza.category !== 'Sanduíches') {
       setActiveCategory('Bebidas');
       // Scroll to menu section to show drinks
       const menuSection = document.getElementById('menu');
@@ -547,10 +559,8 @@ export default function App() {
       const link = generateWhatsAppLink(docRef.id, 'pizzaria');
       setWhatsappLink(link);
 
-      // Automatically open WhatsApp if payment method is PIX
-      if (customerInfo.paymentMethod === 'pix_now') {
-        window.open(link, '_blank');
-      }
+      // Automatically open WhatsApp for the customer
+      window.open(link, '_blank');
 
       setCheckoutStep('confirmation');
       setCart([]);
@@ -716,12 +726,14 @@ export default function App() {
   // Local AdminDashboard removed to use the one from components/AdminDashboard.tsx
   const CustomizationContent = () => {
     const [secondPizzaCategory, setSecondPizzaCategory] = useState<string>('Tradicional');
-    const availableSecondPizzas = displayPizzas.filter(p => p.category !== 'Bebidas' && p.available);
+    const availableSecondPizzas = displayPizzas.filter(p => p.category !== 'Bebidas' && p.category !== 'Sanduíches' && p.available);
+    const currentSize = SIZES.find(s => s.label === customization.size);
+    const sizeMultiplier = currentSize?.multiplier || 1;
 
     return (
       <div className="space-y-8 py-6 md:py-4">
         {/* Half and Half Toggle */}
-        {selectedPizza?.category !== 'Bebidas' && (
+        {selectedPizza?.category !== 'Bebidas' && selectedPizza?.category !== 'Sanduíches' && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -781,7 +793,7 @@ export default function App() {
                       <ImageWithSkeleton src={pizza.image} className="h-10 w-10 rounded-lg object-cover" alt={pizza.name} />
                       <div className="flex-1 text-left">
                         <p className="text-xs font-black uppercase italic">{pizza.name}</p>
-                        <p className="text-[10px] opacity-60">R$ {pizza.basePrice.toFixed(2)}</p>
+                        <p className="text-[10px] opacity-60">R$ {(pizza.basePrice * sizeMultiplier).toFixed(2)}</p>
                       </div>
                       {secondPizza?.id === pizza.id && <Star className="h-3 w-3 fill-gold" />}
                     </button>
@@ -793,7 +805,7 @@ export default function App() {
         )}
 
         {/* Size Selection */}
-        {selectedPizza?.category !== 'Bebidas' && (
+        {selectedPizza?.category !== 'Bebidas' && selectedPizza?.category !== 'Sanduíches' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Tamanho</Label>
@@ -839,8 +851,8 @@ export default function App() {
           </div>
         )}
 
-      {/* Extras */}
-      {selectedPizza?.category !== 'Bebidas' && (
+      {/* Extras only for pizzas */}
+      {selectedPizza?.category !== 'Bebidas' && selectedPizza?.category !== 'Sanduíches' && (
         <div className="space-y-4">
           <Label className="text-xs font-black uppercase tracking-[0.2em] text-white/40">Adicionais (Opcional)</Label>
           <div className="grid grid-cols-2 gap-3">
@@ -891,8 +903,8 @@ export default function App() {
           <p className="text-4xl md:text-3xl font-black text-gold">
             R$ {(
               (isHalfAndHalf && secondPizza ? Math.max(selectedPizza?.basePrice || 0, secondPizza?.basePrice || 0) : (selectedPizza?.basePrice || 0)) * 
-              (selectedPizza?.category !== 'Bebidas' ? (SIZES.find(s => s.label === customization.size)?.multiplier || 1) : 1) +
-              (selectedPizza?.category !== 'Bebidas' ? customization.extras.reduce((acc, name) => acc + (EXTRA_INGREDIENTS.find(e => e.name === name)?.price || 0), 0) : 0)
+              (selectedPizza?.category !== 'Bebidas' && selectedPizza?.category !== 'Sanduíches' ? (SIZES.find(s => s.label === customization.size)?.multiplier || 1) : 1) +
+              (selectedPizza?.category !== 'Bebidas' && selectedPizza?.category !== 'Sanduíches' ? customization.extras.reduce((acc, name) => acc + (EXTRA_INGREDIENTS.find(e => e.name === name)?.price || 0), 0) : 0)
             ).toFixed(2)}
           </p>
         </div>
@@ -2512,17 +2524,6 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                         )}
 
                         <div className="space-y-4">
-                          <Button 
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-[0.2em] h-16 rounded-2xl shadow-[0_15px_35px_rgba(22,163,74,0.3)] group overflow-hidden relative"
-                            onClick={() => {
-                              window.open(whatsappLink || generateWhatsAppLink(lastOrderId || undefined, 'pizzaria'), '_blank');
-                            }}
-                          >
-                            <span className="relative z-10 flex items-center gap-3">
-                               ENVIAR PEDIDO <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
-                            </span>
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000" />
-                          </Button>
                         </div>
                       </div>
                     </div>
