@@ -2342,228 +2342,315 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                 )}
 
                 {checkoutStep === 'confirmation' && (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-10">
-                    <div className="h-24 w-24 rounded-full bg-green-500/20 flex items-center justify-center mb-4 relative">
-                      <CheckCircle2 className="h-12 w-12 text-green-500" />
-                      <motion.div 
-                        initial={{ scale: 0 }}
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="absolute inset-0 rounded-full border-4 border-green-500/20"
-                      />
+                  <div className="flex flex-col items-center justify-center space-y-12 py-6 animate-in fade-in zoom-in-95 duration-500 overflow-x-hidden">
+                    {/* Visual Confirmation Status */}
+                    <div className="relative flex flex-col items-center">
+                      <div className="relative h-28 w-28 md:h-32 md:w-32 mb-8">
+                        <motion.div 
+                          initial={{ scale: 0, rotate: -45 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          className="h-full w-full rounded-full bg-gold/10 border-4 border-gold/20 flex items-center justify-center shadow-[0_0_50px_rgba(212,175,55,0.2)]"
+                        >
+                          {currentOrderStatus === 'received' || currentOrderStatus === 'awaiting_payment' ? (
+                            <Clock className="h-12 w-12 text-gold animate-pulse" />
+                          ) : currentOrderStatus === 'cooking' ? (
+                            <Utensils className="h-12 w-12 text-gold animate-bounce" />
+                          ) : currentOrderStatus === 'delivery' ? (
+                            <Truck className="h-12 w-12 text-gold animate-bounce" />
+                          ) : (
+                            <CheckCircle2 className="h-12 w-12 text-gold" />
+                          )}
+                        </motion.div>
+                        <motion.div 
+                          animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.1, 0.3] }}
+                          transition={{ repeat: Infinity, duration: 3 }}
+                          className="absolute inset-[-15px] rounded-full border-2 border-gold/10"
+                        />
+                         <motion.div 
+                          animate={{ scale: [1, 1.6, 1], opacity: [0.2, 0.05, 0.2] }}
+                          transition={{ repeat: Infinity, duration: 4 }}
+                          className="absolute inset-[-30px] rounded-full border border-gold/5"
+                        />
+                      </div>
+
+                      <div className="text-center space-y-2">
+                        <h4 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-white leading-none">
+                          {currentOrderStatus === 'awaiting_payment' ? 'Aguardando Pagamento' :
+                           currentOrderStatus === 'received' ? 'Pedido Recebido!' : 
+                           currentOrderStatus === 'cooking' ? '🔥 Na Cozinha!' :
+                           currentOrderStatus === 'delivery' ? '🚀 Saiu para Entrega!' :
+                           currentOrderStatus === 'completed' ? '🍕 Bom Apetite!' : 'Pedido Cancelado'}
+                        </h4>
+                        <div className="flex items-center justify-center gap-4 py-2">
+                          <div className="h-px w-8 bg-white/10" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gold/60">Status Real-Time</span>
+                          <div className="h-px w-8 bg-white/10" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-4 w-full">
-                      <h4 className="text-2xl font-black uppercase italic text-white leading-none">
-                        {currentOrderStatus === 'received' ? 'Pedido Recebido!' : 
-                         currentOrderStatus === 'cooking' ? '🍕 Sendo Preparado!' :
-                         currentOrderStatus === 'delivery' ? '🚀 Saiu para Entrega!' :
-                         currentOrderStatus === 'completed' ? '✅ Pedido Finalizado!' : 'Pedido Cancelado'}
-                      </h4>
-                      
-                       {customerInfo.paymentMethod === 'pix_now' && (
-                        <Button 
-                          onClick={() => {
-                            const now = new Date();
-                            const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-                            const orderId = (lastOrderId && lastOrderId !== '---') ? `#${lastOrderId}` : `de ${timeString}`;
-                            const total = cartTotal.toFixed(2);
-                            const customerName = customerInfo.name || 'Cliente';
+
+                    {/* Tracking Timeline */}
+                    <div className="w-full max-w-md px-4">
+                      <div className="relative flex justify-between">
+                        {/* Background line */}
+                        <div className="absolute top-5 left-8 right-8 h-[2px] bg-white/5" />
+                        
+                        {/* Status Items */}
+                        {[
+                          { id: 'awaiting_payment', label: 'Pagamento', icon: Wallet },
+                          { id: 'received', label: 'Recebido', icon: Bell },
+                          { id: 'cooking', label: 'Preparo', icon: Utensils },
+                          { id: 'delivery', label: 'Entrega', icon: Truck },
+                          { id: 'completed', label: 'Pronto', icon: CheckCircle2 }
+                        ].map((step, idx, arr) => {
+                          const isActive = currentOrderStatus === step.id;
+                          const isDone = arr.findIndex(s => s.id === currentOrderStatus) >= idx;
+                          
+                          return (
+                            <div key={idx} className="relative z-10 flex flex-col items-center space-y-3">
+                              <div className={cn(
+                                "h-10 w-10 rounded-xl border flex items-center justify-center transition-all duration-500",
+                                isActive ? "bg-gold border-gold text-deep-black shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-110" :
+                                isDone ? "bg-gold/20 border-gold/30 text-gold" : "bg-zinc-900 border-white/10 text-white/20"
+                              )}>
+                                <step.icon className={cn("h-4 w-4", isActive && "animate-pulse")} />
+                              </div>
+                              <span className={cn(
+                                "text-[7px] md:text-[8px] font-black uppercase tracking-widest",
+                                isActive ? "text-gold" : isDone ? "text-white/60" : "text-white/20"
+                              )}>
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                     {/* Main Instruction Card */}
+                    <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-xl">
+                      <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                        <div className="flex justify-between items-start mb-6">
+                           <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/40">ID do Pedido</p>
+                            <p className="text-xl font-mono font-black text-white italic tracking-tighter">
+                              #{lastOrderId?.slice(-6).toUpperCase() || '---'}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="border-gold/30 text-gold uppercase text-[8px] font-black px-3 py-1">
+                            {customerInfo.paymentMethod === 'pix_now' ? 'Pagamento PIX' : 'Pagamento Local'}
+                          </Badge>
+                        </div>
+
+                         <div className="space-y-4">
+                          <p className="text-sm text-white/60 leading-relaxed font-medium">
+                            Tudo certo, <span className="text-white font-bold">{customerInfo.name}</span>! Agora só falta um último detalhe para sua pizza começar a ser preparada.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-6 space-y-6">
+                        {customerInfo.paymentMethod === 'pix_now' && (
+                          <div className="space-y-6">
+                             {/* PIX QR Surface */}
+                             <div className="p-6 bg-zinc-900/50 rounded-2xl border border-gold/10 space-y-4 text-center">
+                              <div className="flex justify-center">
+                                <div className="bg-white p-3 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.05)]">
+                                  <img 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(generatePixPayload(cartTotal))}`}
+                                    alt="QR Code Pix"
+                                    className="h-40 w-40 object-contain"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-sm font-mono font-black text-white italic">45.890.123/0001-45</p>
+                                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mt-1">Beneficiário: Ouro Preto Pizzaria</p>
+                                </div>
+                                <Button 
+                                  className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black uppercase text-[10px] tracking-widest h-10 rounded-xl"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText('45890123000145');
+                                    toast.success('Chave PIX copiada!');
+                                  }}
+                                >
+                                  Copiar Chave CNPJ
+                                </Button>
+                              </div>
+                            </div>
                             
-                            const msg = `✅ COMPROVANTE DE PAGAMENTO
-Pedido: ${orderId}
+                            <Button 
+                              onClick={() => {
+                                const now = new Date();
+                                const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+                                const orderIdStr = (lastOrderId && lastOrderId !== '---') ? `#${lastOrderId}` : `de ${timeString}`;
+                                const total = cartTotal.toFixed(2);
+                                const customerName = customerInfo.name || 'Cliente';
+                                
+                                const msg = `✅ COMPROVANTE DE PAGAMENTO
+Pedido: ${orderIdStr}
 Cliente: ${customerName}
 Total: R$ ${total}
 Pagamento: PIX
 Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimento para iniciar a produção!`;
-                            window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
-                          }}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] tracking-widest h-10 mb-6"
-                        >
-                          Enviar Comprovante via WhatsApp
-                        </Button>
-                      )}
-                      
-                      {/* Tracking Progress In Confirmation */}
-                      <div className="space-y-2 mt-4 px-6">
-                        <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ 
-                              width: currentOrderStatus === 'received' ? '25%' : 
-                                     currentOrderStatus === 'cooking' ? '50%' : 
-                                     currentOrderStatus === 'delivery' ? '75%' : '100%' 
-                            }}
-                            className="absolute inset-y-0 left-0 bg-gold"
-                          />
-                        </div>
-                        <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-white/30">
-                          <span className={cn(currentOrderStatus === 'received' && "text-gold")}>Recebido</span>
-                          <span className={cn(currentOrderStatus === 'cooking' && "text-gold")}>Na Cozinha</span>
-                          <span className={cn(currentOrderStatus === 'delivery' && "text-gold")}>Entrega</span>
-                          <span className={cn(currentOrderStatus === 'completed' && "text-gold")}>Finalizado</span>
-                        </div>
-                      </div>
-
-                      <p className="text-sm text-white/80 max-w-xs mx-auto">
-                        Obrigado, <span className="text-gold font-bold">{customerInfo.name}</span>! Seu pedido <span className="font-mono bg-white/10 px-2 py-1 rounded">#{lastOrderId?.slice(-6).toUpperCase() || '---'}</span> foi recebido.
-                      </p>
-                    </div>
-
-                    {/* Loyalty Progress */}
-                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-3xl border border-white/10 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Programa de Fidelidade</span>
-                        <span className="text-xs font-black text-gold">{loyaltyPoints}/10 Pontos</span>
-                      </div>
-                      <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/10">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(loyaltyPoints / 10) * 100}%` }}
-                          className="h-full bg-gold shadow-[0_0_15px_rgba(212,175,55,0.5)]"
-                        />
-                      </div>
-                      <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest">
-                        {loyaltyPoints >= 10 ? 'PARABÉNS! VOCÊ GANHOU UMA PIZZA GRÁTIS!' : `FALTAM ${10 - loyaltyPoints} PEDIDOS PARA SUA PIZZA GRÁTIS!`}
-                      </p>
-                    </div>
-                    
-                    <div className="w-full max-w-sm p-6 bg-white/5 rounded-2xl border border-white/10 text-sm text-white/80 space-y-3">
-                      {customerInfo.paymentMethod === 'pix_now' && (
-                        <div className="mb-6 p-6 bg-zinc-900 rounded-2xl border border-gold/30 space-y-5 text-center">
-                          <p className="text-[10px] font-black uppercase text-gold tracking-widest leading-none">Escaneie o QR Code abaixo</p>
-                          
-                          <div className="flex justify-center">
-                            <div className="bg-white p-3 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)]">
-                               <img 
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(generatePixPayload(cartTotal))}`}
-                                alt="QR Code Pix"
-                                className="h-48 w-48 object-contain"
-                              />
-                            </div>
+                                window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                              }}
+                              className="w-full bg-green-500 hover:bg-green-600 text-white font-black uppercase text-[10px] tracking-widest h-14 rounded-2xl shadow-lg shadow-green-500/20 flex items-center justify-center gap-3"
+                            >
+                              Enviar Comprovante <MessageCircle className="h-4 w-4" />
+                            </Button>
                           </div>
+                        )}
 
-                          <div className="space-y-2">
-                            <div className="py-2 border-y border-white/10">
-                              <p className="text-xl font-mono font-black text-white">45.890.123/0001-45</p>
-                              <p className="text-[10px] font-bold text-white/40 uppercase mt-1">Beneficiário: Pizzaria Ouro Preto</p>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 justify-center bg-gold/5 p-3 rounded-xl border border-gold/20">
-                              <AlertCircle className="h-4 w-4 text-gold shrink-0" />
-                              <p className="text-[10px] font-black text-gold uppercase leading-tight tracking-wider text-left">
-                                Confirme se o recebedor é PIZZARIA OURO PRETO antes de digitar sua senha.
-                              </p>
-                            </div>
-                          </div>
-
+                        <div className="space-y-4">
                           <Button 
-                            className="bg-gold text-deep-black w-full font-black uppercase tracking-widest h-12"
-                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-[0.2em] h-16 rounded-2xl shadow-[0_15px_35px_rgba(22,163,74,0.3)] group overflow-hidden relative"
                             onClick={() => {
-                              navigator.clipboard.writeText('45890123000145');
-                              toast.success('Chave PIX copiada!');
+                              window.open(whatsappLink || generateWhatsAppLink(lastOrderId || undefined, 'pizzaria'), '_blank');
                             }}
                           >
-                            Copiar Chave CNPJ
+                            <span className="relative z-10 flex items-center gap-3">
+                               ENVIAR PEDIDO <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000" />
                           </Button>
                         </div>
-                      )}
-                      
-                      <p className="font-bold text-gold uppercase text-[10px] tracking-widest text-center">Próximo Passo:</p>
-                      <p className="text-center">
-                        Para finalizar seu pedido, clique no botão abaixo para nos enviar os detalhes e <span className="text-white font-black underline decoration-gold/50">acertar o pagamento via WhatsApp</span>. 
-                      </p>
-                      {customerInfo.paymentMethod === 'pix_now' && (
-                        <p className="text-[11px] text-white/60 bg-white/5 p-2 rounded-lg text-center italic">
-                          💡 Não esqueça de anexar o comprovante do PIX!
-                        </p>
-                      )}
+                      </div>
                     </div>
-                    
-                    <Button 
-                      className="w-full max-w-sm bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest h-16 rounded-2xl shadow-lg shadow-green-600/20 group mt-6"
-                      onClick={() => {
-                        window.open(whatsappLink || generateWhatsAppLink(lastOrderId || undefined, 'pizzaria'), '_blank');
-                      }}
-                    >
-                      ENVIAR PEDIDO PARA O WHATSAPP <MessageCircle className="ml-2 h-6 w-6 group-hover:scale-110 transition-transform" />
-                    </Button>
 
-                    <Button 
-                      variant="ghost"
-                      className="w-full max-w-sm text-white/40 hover:text-white font-black uppercase tracking-widest h-12 mt-2"
-                      onClick={() => {
-                        setCart([]);
-                        setCheckoutStep('cart');
-                        setIsCartOpen(false);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                    >
-                      CONTINUAR COMPRANDO
-                    </Button>
+                    {/* Loyalty + Continue Container */}
+                    <div className="w-full max-w-sm space-y-6">
+                       {/* Fidelity Card */}
+                        <div className="relative group overflow-hidden p-6 bg-zinc-900 rounded-3xl border border-white/10 shadow-2xl">
+                          <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <PizzaIcon className="h-24 w-24 rotate-12" />
+                          </div>
+                          
+                          <div className="relative z-10">
+                            <div className="flex justify-between items-center mb-6">
+                              <div className="space-y-1">
+                                 <h5 className="text-[10px] font-black uppercase tracking-widest text-gold italic">Gold Member</h5>
+                                 <p className="text-white font-black uppercase italic tracking-tighter">Ouro Preto Loyalty</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-3xl font-black text-white italic tracking-tighter">{loyaltyPoints}</span>
+                                <span className="text-[10px] font-black text-white/40 uppercase ml-1">/10</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-4">
+                              <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/5">
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${(loyaltyPoints / 10) * 100}%` }}
+                                  className="h-full bg-gradient-to-r from-gold/50 to-gold rounded-full shadow-[0_0_15px_rgba(212,175,55,0.5)]"
+                                />
+                              </div>
+                              
+                              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                                 {loyaltyPoints >= 10 ? (
+                                   <p className="text-gold animate-pulse">🔥 PARABÉNS! UMA PIZZA GRÁTIS TE ESPERA!</p>
+                                 ) : (
+                                   <p className="text-white/40">Faltam <span className="text-white">{(10 - loyaltyPoints)} pedidos</span> para sua recompensa.</p>
+                                 )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button 
+                          variant="ghost"
+                          className="w-full text-white/40 hover:text-white font-black uppercase tracking-[0.3em] h-12 text-[10px] border-b border-white/5 rounded-none hover:bg-transparent"
+                          onClick={() => {
+                            setCart([]);
+                            setCheckoutStep('cart');
+                            setIsCartOpen(false);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          Continuar Comprando
+                        </Button>
+                    </div>
 
                     {/* Feedback Section */}
-                    {!isFeedbackSubmitted ? (
-                      <div className="w-full max-w-sm p-6 bg-white/5 rounded-3xl border border-white/10 space-y-6 mt-8">
-                        <div className="text-center space-y-2">
-                          <h4 className="text-xs font-black uppercase tracking-[0.2em] text-white">O que achou da experiência?</h4>
-                          <p className="text-[10px] text-white/40 font-bold uppercase">Sua opinião é fundamental para nós!</p>
-                        </div>
-                        
-                        <div className="flex justify-center gap-2">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => setFeedback(prev => ({ ...prev, rating: star }))}
-                              className="focus:outline-none transition-transform active:scale-90"
-                            >
-                              <Star 
-                                className={cn(
-                                  "h-8 w-8 transition-all",
-                                  feedback.rating >= star ? "fill-gold text-gold scale-110" : "text-white/10 hover:text-white/30"
-                                )} 
-                              />
-                            </button>
-                          ))}
-                        </div>
+                    <div className="w-full max-w-sm">
+                       {!isFeedbackSubmitted ? (
+                        <div className="p-8 bg-zinc-900 border border-white/5 rounded-[40px] space-y-10">
+                          <div className="text-center space-y-3">
+                            <h4 className="text-lg font-black uppercase italic tracking-tighter text-white">Sua Opinião Vale Ouro</h4>
+                            <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest max-w-[200px] mx-auto leading-relaxed">
+                              Avalie sua experiência e nos ajude a evoluir o sabor de Ouro Preto.
+                            </p>
+                          </div>
+                          
+                          <div className="flex justify-center gap-3">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                onClick={() => setFeedback(prev => ({ ...prev, rating: star }))}
+                                className="group relative focus:outline-none transition-all active:scale-95"
+                              >
+                                <Star 
+                                  className={cn(
+                                    "h-10 w-10 transition-all duration-300",
+                                    feedback.rating >= star ? "fill-gold text-gold scale-110 drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]" : "text-white/5 group-hover:text-white/20"
+                                  )} 
+                                />
+                                {feedback.rating === star && (
+                                  <motion.div layoutId="star-glow" className="absolute inset-0 bg-gold/20 blur-xl rounded-full" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
 
-                        {feedback.rating > 0 && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="space-y-4"
-                          >
-                            <textarea
-                              value={feedback.comment}
-                              onChange={(e) => setFeedback(prev => ({ ...prev, comment: e.target.value }))}
-                              placeholder="Fale um pouco mais (opcional)..."
-                              className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold/30 transition-all resize-none h-24"
-                            />
-                            <Button
-                              onClick={() => {
-                                setIsFeedbackSubmitted(true);
-                                toast.success('Obrigado pelo seu feedback!');
-                              }}
-                              className="w-full bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest h-12 hover:bg-white/10"
-                            >
-                              ENVIAR AVALIAÇÃO
-                            </Button>
-                          </motion.div>
-                        )}
-                      </div>
-                    ) : (
-                      <motion.div 
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="w-full max-w-sm p-8 bg-green-500/10 rounded-3xl border border-green-500/20 text-center space-y-3 mt-8"
-                      >
-                        <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
-                          <CheckCircle2 className="h-6 w-6 text-green-500" />
+                          <AnimatePresence>
+                            {feedback.rating > 0 && (
+                              <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="space-y-6 pt-4"
+                              >
+                                <textarea
+                                  value={feedback.comment}
+                                  onChange={(e) => setFeedback(prev => ({ ...prev, comment: e.target.value }))}
+                                  placeholder="Conte o que mais gostou (e o que podemos melhorar)..."
+                                  className="w-full bg-black/40 border border-white/10 rounded-3xl p-5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-gold/30 transition-all resize-none h-32"
+                                />
+                                <Button
+                                  onClick={() => {
+                                    setIsFeedbackSubmitted(true);
+                                    toast.success('Obrigado pelo seu feedback! 🍕');
+                                  }}
+                                  className="w-full bg-white text-deep-black font-black uppercase tracking-widest h-14 rounded-2xl hover:bg-gold transition-colors"
+                                >
+                                  ENVIAR AVALIAÇÃO
+                                </Button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-green-500">Feedback Recebido!</h4>
-                        <p className="text-[10px] text-white/60 font-bold uppercase">Trabalhamos duro para sua satisfação.</p>
-                      </motion.div>
-                    )}
+                      ) : (
+                        <motion.div 
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="p-10 bg-green-500/5 rounded-[40px] border border-green-500/10 text-center space-y-6"
+                        >
+                          <div className="h-16 w-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(34,197,94,0.1)]">
+                            <CheckCircle2 className="h-8 w-8 text-green-500" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-black uppercase tracking-widest text-green-500">Feedback Recebido!</h4>
+                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-relaxed">
+                              Sua avaliação está nos nossos arquivos. <br/> Muito obrigado!
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
