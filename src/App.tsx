@@ -30,6 +30,7 @@ import {
   User,
   LogOut,
   History,
+  Bell,
   Ticket,
   Beer,
   AlertCircle,
@@ -166,6 +167,8 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
   return new Error(JSON.stringify(errInfo));
 };
 
+const MIN_ORDER_VALUE = 30;
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -204,13 +207,20 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Cart State
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const savedCart = localStorage.getItem('cart');
+      return savedCart ? JSON.parse(savedCart) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'address' | 'payment' | 'summary' | 'confirmation'>('cart');
   const [isNeighborhoodOpen, setIsNeighborhoodOpen] = useState(false);
   const [isTemporarilyOpen, setIsTemporarilyOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+  const [lastOrderId, setLastOrderId] = useState<string | null>(() => localStorage.getItem('lastOrderId'));
   const [whatsappLink, setWhatsappLink] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState('Destaques');
   
@@ -240,6 +250,9 @@ export default function App() {
   // Coupon State
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+
+  const [feedback, setFeedback] = useState({ rating: 0, comment: '' });
+  const [isFeedbackSubmitted, setIsFeedbackSubmitted] = useState(false);
 
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [deliveryFee, setDeliveryFee] = useState(0);
@@ -338,6 +351,10 @@ export default function App() {
   }, [customerInfo.phone]);
 
   useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -345,8 +362,30 @@ export default function App() {
   }, []);
 
   const activeOrder = useMemo(() => {
-    return orders.find(o => ['received', 'cooking', 'delivery'].includes(o.status));
+    return orders.find(o => ['awaiting_payment', 'received', 'cooking', 'delivery'].includes(o.status));
   }, [orders]);
+
+  const [guestOrder, setGuestOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (!user && lastOrderId) {
+      const unsub = onSnapshot(doc(db, 'orders', lastOrderId), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = { id: snapshot.id, ...snapshot.data() } as Order;
+          if (['awaiting_payment', 'received', 'cooking', 'delivery'].includes(data.status)) {
+            setGuestOrder(data);
+          } else {
+            setGuestOrder(null);
+          }
+        }
+      });
+      return () => unsub();
+    } else {
+      setGuestOrder(null);
+    }
+  }, [user, lastOrderId]);
+
+  const currentActiveOrder = activeOrder || guestOrder;
 
   const cartSubtotal = useMemo(() => {
     return cart.reduce((total, item) => total + item.totalPrice, 0);
@@ -497,6 +536,7 @@ export default function App() {
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);
       setLastOrderId(docRef.id);
+      localStorage.setItem('lastOrderId', docRef.id);
       
       // Generate the WhatsApp link BEFORE clearing the cart
       const link = generateWhatsAppLink(docRef.id, 'pizzaria');
@@ -974,6 +1014,49 @@ export default function App() {
         <DeliveryDashboardComponent />
       ) : (
         <>
+          {/* Floating Track Order Button */}
+          {currentActiveOrder && checkoutStep !== 'confirmation' && !isAdminView && !isDeliveryView && (
+            <motion.div 
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md"
+            >
+              <Button 
+                onClick={() => {
+                  setLastOrderId(currentActiveOrder.id!);
+                  setCheckoutStep('confirmation');
+                  setIsCartOpen(true);
+                }}
+                className="w-full bg-gold hover:bg-gold-dark text-deep-black h-16 rounded-3xl shadow-[0_20px_50px_rgba(212,175,55,0.3)] border-2 border-gold/20 flex items-center justify-between px-6 group overflow-hidden"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-2xl bg-deep-black/10 flex items-center justify-center">
+                    {currentActiveOrder.status === 'awaiting_payment' ? <Wallet className="h-5 w-5 animate-pulse" /> :
+                     currentActiveOrder.status === 'received' ? <Bell className="h-5 w-5 animate-bounce" /> :
+                     currentActiveOrder.status === 'cooking' ? <Utensils className="h-5 w-5 animate-spin-slow" /> :
+                     <Truck className="h-5 w-5 animate-bounce" />}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60 leading-none mb-1">Seu pedido está</p>
+                    <p className="text-sm font-black uppercase italic leading-none">
+                      {currentActiveOrder.status === 'awaiting_payment' ? 'Aguardando Pagamento' :
+                       currentActiveOrder.status === 'received' ? 'Sendo Recebido' :
+                       currentActiveOrder.status === 'cooking' ? 'Sendo Preparado' :
+                       'Saiu para Entrega'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 bg-deep-black/10 px-3 py-1.5 rounded-xl">
+                  <span className="text-[10px] font-black uppercase tracking-widest">Acompanhar</span>
+                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+                
+                {/* Gloss shine effect */}
+                <div className="absolute inset-x-0 top-0 h-full bg-white/20 -skew-x-[45deg] translate-x-[-150%] group-hover:translate-x-[250%] transition-transform duration-1000" />
+              </Button>
+            </motion.div>
+          )}
+
           {/* Header */}
           <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-deep-black/80 backdrop-blur-md">
         <div className="container flex h-16 md:h-20 items-center justify-between px-4 md:px-8">
@@ -2387,6 +2470,82 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                     >
                       ENVIAR PEDIDO PARA O WHATSAPP <MessageCircle className="ml-2 h-6 w-6 group-hover:scale-110 transition-transform" />
                     </Button>
+
+                    <Button 
+                      variant="ghost"
+                      className="w-full max-w-sm text-white/40 hover:text-white font-black uppercase tracking-widest h-12 mt-2"
+                      onClick={() => {
+                        setCart([]);
+                        setCheckoutStep('cart');
+                        setIsCartOpen(false);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    >
+                      CONTINUAR COMPRANDO
+                    </Button>
+
+                    {/* Feedback Section */}
+                    {!isFeedbackSubmitted ? (
+                      <div className="w-full max-w-sm p-6 bg-white/5 rounded-3xl border border-white/10 space-y-6 mt-8">
+                        <div className="text-center space-y-2">
+                          <h4 className="text-xs font-black uppercase tracking-[0.2em] text-white">O que achou da experiência?</h4>
+                          <p className="text-[10px] text-white/40 font-bold uppercase">Sua opinião é fundamental para nós!</p>
+                        </div>
+                        
+                        <div className="flex justify-center gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={() => setFeedback(prev => ({ ...prev, rating: star }))}
+                              className="focus:outline-none transition-transform active:scale-90"
+                            >
+                              <Star 
+                                className={cn(
+                                  "h-8 w-8 transition-all",
+                                  feedback.rating >= star ? "fill-gold text-gold scale-110" : "text-white/10 hover:text-white/30"
+                                )} 
+                              />
+                            </button>
+                          ))}
+                        </div>
+
+                        {feedback.rating > 0 && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-4"
+                          >
+                            <textarea
+                              value={feedback.comment}
+                              onChange={(e) => setFeedback(prev => ({ ...prev, comment: e.target.value }))}
+                              placeholder="Fale um pouco mais (opcional)..."
+                              className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold/30 transition-all resize-none h-24"
+                            />
+                            <Button
+                              onClick={() => {
+                                setIsFeedbackSubmitted(true);
+                                toast.success('Obrigado pelo seu feedback!');
+                              }}
+                              className="w-full bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest h-12 hover:bg-white/10"
+                            >
+                              ENVIAR AVALIAÇÃO
+                            </Button>
+                          </motion.div>
+                        )}
+                      </div>
+                    ) : (
+                      <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="w-full max-w-sm p-8 bg-green-500/10 rounded-3xl border border-green-500/20 text-center space-y-3 mt-8"
+                      >
+                        <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+                          <CheckCircle2 className="h-6 w-6 text-green-500" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-green-500">Feedback Recebido!</h4>
+                        <p className="text-[10px] text-white/60 font-bold uppercase">Trabalhamos duro para sua satisfação.</p>
+                      </motion.div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2407,12 +2566,23 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                       </div>
                       
                       {checkoutStep === 'cart' && (
-                        <Button 
-                          onClick={() => setCheckoutStep('address')}
-                          className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group"
-                        >
-                          ENTREGA <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                          {cartTotal < MIN_ORDER_VALUE && (
+                            <p className="text-[9px] font-black uppercase tracking-widest text-pizza-red text-center animate-pulse mb-1">
+                              Pedido mínimo: R$ {MIN_ORDER_VALUE.toFixed(2)}
+                              <span className="block text-[8px] opacity-60">Faltam R$ {(MIN_ORDER_VALUE - cartTotal).toFixed(2)}</span>
+                            </p>
+                          )}
+                          <Button 
+                            disabled={cartTotal < MIN_ORDER_VALUE}
+                            onClick={() => setCheckoutStep('address')}
+                            className="bg-gold hover:bg-gold-dark text-deep-black font-black uppercase tracking-widest h-14 px-8 rounded-full shadow-lg shadow-gold/20 group disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            {cartTotal < MIN_ORDER_VALUE ? 'VALOR MÍNIMO R$ 30' : (
+                              <>ENTREGA <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" /></>
+                            )}
+                          </Button>
+                        </div>
                       )}
 
                       {checkoutStep === 'address' && (
