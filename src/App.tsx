@@ -362,7 +362,12 @@ export default function App() {
   }, []);
 
   const activeOrder = useMemo(() => {
-    return orders.find(o => ['awaiting_payment', 'received', 'cooking', 'delivery'].includes(o.status));
+    if (orders.length === 0) return undefined;
+    const latestOrder = orders[0];
+    if (['awaiting_payment', 'received', 'cooking', 'delivery'].includes(latestOrder.status)) {
+      return latestOrder;
+    }
+    return undefined;
   }, [orders]);
 
   const [guestOrder, setGuestOrder] = useState<Order | null>(null);
@@ -1042,7 +1047,8 @@ export default function App() {
                       {currentActiveOrder.status === 'awaiting_payment' ? 'Aguardando Pagamento' :
                        currentActiveOrder.status === 'received' ? 'Sendo Recebido' :
                        currentActiveOrder.status === 'cooking' ? 'Sendo Preparado' :
-                       'Saiu para Entrega'}
+                       currentActiveOrder.status === 'delivery' ? 'Saiu para Entrega' :
+                       currentActiveOrder.status === 'completed' ? 'Entregue' : 'Pedido Ativo'}
                     </p>
                   </div>
                 </div>
