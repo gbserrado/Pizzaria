@@ -502,6 +502,11 @@ export default function App() {
       const link = generateWhatsAppLink(docRef.id, 'pizzaria');
       setWhatsappLink(link);
 
+      // Automatically open WhatsApp if payment method is PIX
+      if (customerInfo.paymentMethod === 'pix_now') {
+        window.open(link, '_blank');
+      }
+
       setCheckoutStep('confirmation');
       setCart([]);
       setAppliedCoupon(null);
@@ -628,7 +633,11 @@ export default function App() {
         message += `*🏷️ DESCONTO:* - R$ ${discountAmount.toFixed(2)}\n`;
       }
       message += `*💰 VALOR TOTAL:* R$ ${cartTotal.toFixed(2)}\n`;
-    message += `*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'pix_now' ? 'PIX (Comprovante abaixo)' : customerInfo.paymentMethod === 'card_delivery' ? 'CARTÃO (Levar maquininha)' : 'DINHEIRO'}\n`;
+    const pixInfo = customerInfo.paymentMethod === 'pix_now' 
+      ? `\n*💳 PAGAMENTO:* PIX\n*🔑 CHAVE PIX (CNPJ):* 45.890.123/0001-45\n*⚠️ AVISO:* Enviarei o comprovante em seguida!` 
+      : `\n*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'card_delivery' ? 'CARTÃO (Levar maquininha)' : 'DINHEIRO'}`;
+    
+    message += pixInfo + `\n`;
 
     if (customerInfo.needChange) {
       const changeValue = parseFloat(customerInfo.changeFor) - cartTotal;

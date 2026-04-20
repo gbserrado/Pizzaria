@@ -24,7 +24,8 @@ import {
   History,
   TrendingUp,
   DollarSign,
-  Calendar
+  Calendar,
+  Trash2
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { 
@@ -43,7 +44,8 @@ import {
   updateDoc, 
   setDoc, 
   getDoc,
-  increment
+  increment,
+  deleteDoc
 } from 'firebase/firestore';
 import { Order, OrderStatus, PIZZAS, Pizza, StoreConfig, DELIVERY_FEES } from '../types';
 import { Button } from '@/components/ui/button';
@@ -57,7 +59,11 @@ import { cn } from '@/lib/utils';
 
 const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
 
-  const OrderCard: React.FC<{ order: Order, onUpdateStatus: (id: string, status: OrderStatus, phone?: string) => void | Promise<void> }> = ({ order, onUpdateStatus }) => {
+  const OrderCard: React.FC<{ 
+    order: Order, 
+    onUpdateStatus?: (id: string, status: OrderStatus, phone?: string) => void | Promise<void>,
+    onDelete?: (id: string) => void | Promise<void>
+  }> = ({ order, onUpdateStatus, onDelete }) => {
     const [isPanic, setIsPanic] = useState(false);
 
     useEffect(() => {
@@ -103,9 +109,21 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
               </p>
               <h3 className="font-black uppercase italic text-lg">{order.customerName}</h3>
             </div>
-            <Badge variant="ghost" className="bg-gold/10 text-gold border border-gold/20 uppercase text-[10px] font-black">
-              {order.paymentMethod === 'pix_now' ? 'PIX' : order.paymentMethod === 'card_delivery' ? 'CARTÃO' : 'DINHEIRO'}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="ghost" className="bg-gold/10 text-gold border border-gold/20 uppercase text-[10px] font-black">
+                {order.paymentMethod === 'pix_now' ? 'PIX' : order.paymentMethod === 'card_delivery' ? 'CARTÃO' : 'DINHEIRO'}
+              </Badge>
+              {onDelete && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => onDelete(order.id!)}
+                  className="h-7 w-7 text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
         </div>
 
         <div className="space-y-2">
@@ -246,7 +264,7 @@ Link do Maps: ${mapsUrl}`;
           </div>
 
           <div className="flex gap-2">
-            {order.status === 'awaiting_payment' && (
+            {order.status === 'awaiting_payment' && onUpdateStatus && (
                 <Button 
                 size="sm"
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase h-10"
@@ -256,7 +274,7 @@ Link do Maps: ${mapsUrl}`;
                 </Button>
             )}
 
-            {order.status === 'received' && (
+            {order.status === 'received' && onUpdateStatus && (
                 <Button 
                 size="sm"
                 className={cn("flex-1 text-[10px] font-black uppercase h-10", isPanic ? "bg-red-600 hover:bg-red-700 text-white" : "bg-gold hover:bg-gold-dark text-deep-black")}
@@ -266,7 +284,7 @@ Link do Maps: ${mapsUrl}`;
                 </Button>
             )}
             
-            {order.status === 'cooking' && (
+            {order.status === 'cooking' && onUpdateStatus && (
                 <Button 
                 size="sm"
                 className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase h-10"
@@ -280,7 +298,7 @@ Link do Maps: ${mapsUrl}`;
                 </Button>
             )}
             
-            {order.status === 'delivery' && (
+            {order.status === 'delivery' && onUpdateStatus && (
                 <Button 
                 size="sm"
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase h-10"
@@ -314,6 +332,8 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
     previousOrdersCount.current = activeOrders.length;
   }, [orders]);
   const [activeTab, setActiveTab] = useState<'orders' | 'kitchen' | 'history' | 'finance' | 'menu' | 'settings' | 'deliveries'>('orders');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [deliveryFees, setDeliveryFees] = useState<{name: string, fee: number}[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -443,6 +463,47 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
       toast.error('Senha incorreta!');
     }
   };
+
+  const deleteOrder = async (orderId: string) => {
+    if (!confirm('Deseja realmente excluir este pedido? Esta ação não pode ser desfeita.')) return;
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+      toast.success('Pedido excluído com sucesso!');
+    } catch (error) {
+      console.error('Delete Order Error:', error);
+      toast.error('Erro ao excluir pedido.');
+    }
+  };
+
+  const filteredHistoryOrders = orders.filter(order => {
+    if (!startDate && !endDate) return true;
+    
+    let orderDate = 0;
+    try {
+      if (typeof order.createdAt?.toDate === 'function') {
+        orderDate = order.createdAt.toDate().getTime();
+      } else if (order.createdAt?.seconds) {
+        orderDate = order.createdAt.seconds * 1000;
+      } else {
+        orderDate = new Date(order.createdAt).getTime();
+      }
+    } catch (e) {
+      return true;
+    }
+
+    if (startDate) {
+      const start = new Date(startDate).getTime();
+      if (orderDate < start) return false;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      if (orderDate > end.getTime()) return false;
+    }
+
+    return true;
+  });
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, customerPhone?: string) => {
     try {
@@ -785,13 +846,53 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
 
           {activeTab === 'history' && (
             <div className="space-y-6">
-              <h3 className="text-xl font-black uppercase text-white">Todos os Pedidos</h3>
-              <div className="space-y-4">
-                {orders.slice(0, 10).map((order: Order) => (
-                  <OrderCard key={order.id} order={order} onUpdateStatus={updateOrderStatus} />
-                ))}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h3 className="text-xl font-black uppercase text-white">Todos os Pedidos</h3>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+                    <span className="text-[10px] font-black uppercase text-white/40">De:</span>
+                    <input 
+                      type="date" 
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="bg-transparent border-0 text-xs font-bold text-white focus:ring-0 w-28"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+                    <span className="text-[10px] font-black uppercase text-white/40">Até:</span>
+                    <input 
+                      type="date" 
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="bg-transparent border-0 text-xs font-bold text-white focus:ring-0 w-28"
+                    />
+                  </div>
+                  {(startDate || endDate) && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => { setStartDate(''); setEndDate(''); }}
+                      className="text-[10px] font-black uppercase text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
               </div>
-              <Button className="w-full bg-white/5 text-white">Carregar mais...</Button>
+              <div className="space-y-4">
+                {filteredHistoryOrders.length > 0 ? (
+                  filteredHistoryOrders.slice(0, 50).map((order: Order) => (
+                    <OrderCard key={order.id} order={order} onDelete={deleteOrder} />
+                  ))
+                ) : (
+                  <div className="h-40 border-2 border-dashed border-white/5 rounded-3xl flex items-center justify-center text-white/20 font-bold uppercase text-xs">
+                    Nenhum pedido encontrado neste período
+                  </div>
+                )}
+              </div>
+              {filteredHistoryOrders.length > 50 && (
+                <Button className="w-full bg-white/5 text-white">Carregar mais...</Button>
+              )}
             </div>
           )}
 
