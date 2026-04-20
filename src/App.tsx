@@ -492,7 +492,7 @@ export default function App() {
         },
         createdAt: serverTimestamp(),
         couponCode: appliedCoupon?.code || null,
-        discount: Number(appliedCoupon?.discount) || 0
+        discount: appliedCoupon ? Number(appliedCoupon.discount) : 0
       };
 
       const docRef = await addDoc(collection(db, 'orders'), orderData);

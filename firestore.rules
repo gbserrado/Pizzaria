@@ -78,7 +78,7 @@ service cloud.firestore {
         incoming().items.size() <= 50 &&
         incoming().total is number &&
         incoming().total >= 0 &&
-        incoming().status == 'received'; // Initial state strictly protected
+        (incoming().status == 'received' || incoming().status == 'awaiting_payment'); // Initial state protected
         
       allow update: if isAdmin();
       allow delete: if isAdmin();

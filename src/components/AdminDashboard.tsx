@@ -110,6 +110,11 @@ const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
               <h3 className="font-black uppercase italic text-lg">{order.customerName}</h3>
             </div>
             <div className="flex items-center gap-2">
+              {order.status === 'awaiting_payment' && (
+                <Badge className="bg-red-500 text-white border-0 uppercase text-[10px] font-black animate-pulse">
+                  Aguardando Pagamento
+                </Badge>
+              )}
               <Badge variant="ghost" className="bg-gold/10 text-gold border border-gold/20 uppercase text-[10px] font-black">
                 {order.paymentMethod === 'pix_now' ? 'PIX' : order.paymentMethod === 'card_delivery' ? 'CARTÃO' : 'DINHEIRO'}
               </Badge>
@@ -467,11 +472,12 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
   const deleteOrder = async (orderId: string) => {
     if (!confirm('Deseja realmente excluir este pedido? Esta ação não pode ser desfeita.')) return;
     try {
+      console.log('Attempting to delete order:', orderId);
       await deleteDoc(doc(db, 'orders', orderId));
       toast.success('Pedido excluído com sucesso!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete Order Error:', error);
-      toast.error('Erro ao excluir pedido.');
+      toast.error(`Erro ao excluir pedido: ${error.message || 'Verifique suas permissões'}`);
     }
   };
 
@@ -826,7 +832,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
                     <div className="flex items-center justify-between">
                       <h2 className="text-sm font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
                         <div className={cn("h-2 w-2 rounded-full", status === 'awaiting_payment' ? "bg-red-500" : status === 'received' ? "bg-gold animate-pulse" : status === 'cooking' ? "bg-blue-500" : "bg-green-500")} />
-                        {status === 'awaiting_payment' ? 'Aguardando' : status === 'received' ? 'Novos' : status === 'cooking' ? 'Preparando' : 'Entregando'} ({filteredOrders.length})
+                        {status === 'awaiting_payment' ? 'Aguardando Pagamento' : status === 'received' ? 'Novos' : status === 'cooking' ? 'Preparando' : 'Entregando'} ({filteredOrders.length})
                       </h2>
                     </div>
                     <div className="space-y-4">
