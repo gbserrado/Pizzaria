@@ -57,7 +57,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const ADMIN_PASSWORD = 'ouropreto123'; // Simple password as requested
+const ADMIN_PASSWORD = 'pizzaria123'; // Simple password as requested
 
   const OrderCard: React.FC<{ 
     order: Order, 
@@ -245,7 +245,7 @@ Endereço: ${address}
 Pagamento: ${order.paymentMethod === 'pix_now' ? 'PIX (Já pago)' : 'A receber'}
 Link do Maps: ${mapsUrl}`;
                 
-                window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                window.open(`https://wa.me/SEU_TELEFONE_AQUI?text=${encodeURIComponent(msg)}`, '_blank');
                 }}
             >
                 <span className="text-green-500 mr-2">🛵</span> Motoboy
@@ -259,7 +259,7 @@ Link do Maps: ${mapsUrl}`;
                 (order.status === 'completed' || order.status === 'cancelled') ? "w-full" : ""
                 )}
                 onClick={() => {
-                const msg = `Olá ${order.customerName || ''}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
+                const msg = `Olá ${order.customerName || ''}, aqui é da Pizzaria! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
                 window.open(`https://wa.me/55${(order.phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
                 }}
             >
@@ -433,29 +433,28 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
       }
 
       try {
-        await signInWithEmailAndPassword(auth, "admin@ouropreto.com", ADMIN_PASSWORD);
+        await signInWithEmailAndPassword(auth, "admin@pizzaria.com", ADMIN_PASSWORD);
         setIsAuthenticated(true);
         toast.success('Acesso concedido!');
       } catch (error: any) {
         console.error('Firebase Auth Error:', error.code, error.message);
         
         if (error.code === 'auth/operation-not-allowed') {
-          toast.error('Erro: Provedor de E-mail/Senha desativado no Firebase. Ative-o no console.');
-          // As a fallback for development, if password is correct, we might allow it
-          // BUT Firestore calls will fail if not authenticated as admin in rules
-          setIsAuthenticated(true);
+          toast.error('O sistema de login por e-mail está desativado no Firebase. Por favor, ative-o no console do Firebase para usar a senha admin.');
           return;
         }
 
         if (error.code === 'auth/user-not-found' || error.message.includes('user-not-found') || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
           try {
-            await createUserWithEmailAndPassword(auth, "admin@ouropreto.com", ADMIN_PASSWORD);
+            await createUserWithEmailAndPassword(auth, "admin@pizzaria.com", ADMIN_PASSWORD);
             setIsAuthenticated(true);
             toast.success('Acesso concedido (Novo Admin)!');
           } catch (createError: any) {
             console.error('Firebase Create Error:', createError.code, createError.message);
             if (createError.code === 'auth/email-already-in-use') {
                toast.error('Senha incorreta para o usuário admin do banco de dados.');
+            } else if (createError.code === 'auth/operation-not-allowed') {
+               toast.error('O sistema de login por e-mail está desativado no Firebase. Ative-o para usar a senha artesanal.');
             } else {
                toast.error(`Erro de permissão: ${createError.message}`);
             }
@@ -591,30 +590,6 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
                 Entrar com Senha
               </Button>
 
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-graphite px-2 text-white/40">Ou Seguro via</span>
-                </div>
-              </div>
-
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleGoogleLogin}
-                className="w-full bg-white/5 border-white/10 text-white font-black uppercase tracking-widest h-12 hover:bg-white/10"
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Google Admin
-              </Button>
-
               <Button 
                 type="button" 
                 variant="ghost" 
@@ -673,7 +648,7 @@ export default function AdminDashboard({ storeConfig, menuStatus }: { storeConfi
   //           size="sm"
   //           className="border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase"
   //           onClick={() => {
-  //             const msg = `Olá ${order.customerName}, aqui é da Pizzaria Ouro Preto! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
+  //             const msg = `Olá ${order.customerName}, aqui é da Pizzaria! Recebemos seu pedido #${order.id?.slice(-6)} pelo site, mas ainda não confirmamos o pagamento. Como você prefere pagar para seguirmos com o preparo?`;
   //             window.open(`https://wa.me/55${order.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   //           }}
   //         >

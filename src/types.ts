@@ -433,7 +433,7 @@ export const DELIVERY_FEES: { name: string; fee: number }[] = [
   { name: 'Centro', fee: 10.00 },
   { name: 'Olaria', fee: 12.00 },
   { name: 'Prado', fee: 6.00 },
-  { name: 'Jardim Ouro Preto', fee: 6.00 },
+  { name: 'Jardim das Flores', fee: 6.00 },
   { name: 'Riograndina', fee: 8.00 },
   { name: 'Duas Pedras', fee: 8.00 },
   { name: 'Cônego', fee: 12.00 },

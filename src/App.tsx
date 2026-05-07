@@ -605,9 +605,9 @@ export default function App() {
   };
 
   const generatePixPayload = (amount: number) => {
-    const key = "22998487785";
-    const merchantName = "OURO PRETO";
-    const merchantCity = "NOVA FRIBURGO";
+    const key = "SUA_CHAVE_PIX";
+    const merchantName = "PIZZARIA DA CASA";
+    const merchantCity = "SUA CIDADE";
     const amountStr = amount.toFixed(2);
     const amountPart = `54${amountStr.length.toString().padStart(2, '0')}${amountStr}`;
     
@@ -630,8 +630,8 @@ export default function App() {
     return payload + "1234"; 
   };
 
-  const PIZZARIA_PHONE = "5522998487785";
-  const COZINHA_PHONE = "5522998017088";
+  const PIZZARIA_PHONE = "SEU_TELEFONE_AQUI";
+  const COZINHA_PHONE = "TELEFONE_COZINHA_AQUI";
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -689,7 +689,7 @@ export default function App() {
       }
       message += `*💰 VALOR TOTAL:* R$ ${cartTotal.toFixed(2)}\n`;
     const pixInfo = customerInfo.paymentMethod === 'pix_now' 
-      ? `\n*💳 PAGAMENTO:* PIX\n*🔑 CHAVE PIX (CNPJ):* 45.890.123/0001-45\n*⚠️ AVISO:* Enviarei o comprovante em seguida!` 
+      ? `\n*💳 PAGAMENTO:* PIX\n*🔑 CHAVE PIX:* CHAVE_PIX_AQUI\n*⚠️ AVISO:* Enviarei o comprovante em seguida!` 
       : `\n*💳 PAGAMENTO:* ${customerInfo.paymentMethod === 'card_delivery' ? 'CARTÃO (Levar maquininha)' : 'DINHEIRO'}`;
     
     message += pixInfo + `\n`;
@@ -792,7 +792,7 @@ export default function App() {
                     >
                       <ImageWithSkeleton src={pizza.image} className="h-10 w-10 rounded-lg object-cover" alt={pizza.name} />
                       <div className="flex-1 text-left">
-                        <p className="text-xs font-black uppercase italic">{pizza.name}</p>
+                        <p className="text-white text-xs font-black uppercase italic">{pizza.name}</p>
                         <p className="text-[10px] opacity-60">R$ {(pizza.basePrice * sizeMultiplier).toFixed(2)}</p>
                       </div>
                       {secondPizza?.id === pizza.id && <Star className="h-3 w-3 fill-gold" />}
@@ -1006,27 +1006,10 @@ export default function App() {
       )}
 
       {isAdminView ? (
-        user ? (
-          (['gabriel06nf@gmail.com', 'admin@ouropreto.com'].includes(user.email?.toLowerCase() || '')) ? (
-            <AdminDashboardComponent 
-              storeConfig={storeConfig} 
-              menuStatus={menuStatus} 
-            />
-          ) : (
-            <div className="min-h-screen bg-deep-black flex flex-col items-center justify-center p-6 text-center text-white">
-              <div className="bg-red-500/10 p-4 rounded-2xl border border-red-500/20 mb-6">
-                <Lock className="h-12 w-12 text-red-500 mx-auto mb-2" />
-                <h2 className="text-2xl font-black uppercase text-red-500">Acesso negado</h2>
-                <p className="text-white/60 mt-2">O e-mail <span className="text-white font-bold">{user.email}</span> não tem permissão de administrador.</p>
-              </div>
-              <Button onClick={() => window.location.href = '/'} className="bg-gold text-deep-black font-black uppercase">Voltar ao site</Button>
-            </div>
-          )
-        ) : (
-          <div className="min-h-screen bg-deep-black flex items-center justify-center p-6 text-white text-center">
-            <p className="text-white/60">Redirecionando para login...</p>
-          </div>
-        )
+        <AdminDashboardComponent 
+          storeConfig={storeConfig} 
+          menuStatus={menuStatus} 
+        />
       ) : isDeliveryView ? (
         <DeliveryDashboardComponent />
       ) : (
@@ -1091,13 +1074,13 @@ export default function App() {
               <PizzaIcon className="h-5 w-5 md:h-6 md:w-6" />
             </div>
             <h1 className="text-xl md:text-2xl font-extrabold tracking-tighter text-gold">
-              OURO <span className="text-white">PRETO</span>
+              PIZZARIA <span className="text-white">DA CASA</span>
             </h1>
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest text-white/70">
             <a href="/" className="hover:text-gold transition-colors" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Início</a>
-            <a href="https://wa.me/5522998487785" target="_blank" rel="noreferrer" className="hover:text-gold transition-colors">Contato</a>
+            <a href={`https://wa.me/${PIZZARIA_PHONE}`} target="_blank" rel="noreferrer" className="hover:text-gold transition-colors">Contato</a>
           </div>
 
           <div className="flex items-center gap-4">
@@ -1136,7 +1119,7 @@ export default function App() {
               </Button>
             </motion.div>
             <a 
-              href="https://wa.me/5522998487785" 
+              href={`https://wa.me/${PIZZARIA_PHONE}`} 
               target="_blank" 
               rel="noreferrer"
               className={cn(
@@ -1209,7 +1192,7 @@ export default function App() {
                 A MELHOR PIZZA <br className="hidden md:block" /> DIRETO NO SEU <span className="text-gold">SOFÁ</span>.
               </h2>
               <p className="text-sm md:text-xl text-white/70 font-medium max-w-2xl mx-auto">
-                Massa artesanal, ingredientes selecionados e o sabor que você já conhece. Peça agora pelo WhatsApp.
+                Massa de qualidade, ingredientes selecionados e o sabor que você já conhece. Peça agora pelo WhatsApp.
               </p>
               <div className="pt-4 md:pt-6">
                 <a 
@@ -1423,7 +1406,7 @@ export default function App() {
                               <div className="space-y-1">
                                 <div className="flex justify-between items-start gap-2">
                                   <CardTitle className={`
-                                    font-black group-hover:text-gold transition-colors uppercase italic tracking-tight truncate
+                                    text-white font-black group-hover:text-gold transition-colors uppercase italic tracking-tight truncate
                                     ${isMobile ? 'text-base leading-tight w-full pr-6' : 'text-xl'}
                                   `}>
                                     {pizza.name}
@@ -1436,7 +1419,7 @@ export default function App() {
                                 </div>
                                 
                                 <CardDescription className={`
-                                  text-white/60 leading-snug font-medium
+                                  text-white/80 leading-snug font-medium
                                   ${isMobile ? 'text-[10px] line-clamp-2' : 'text-xs mt-2'}
                                 `}>
                                   {pizza.description}
@@ -1642,7 +1625,7 @@ export default function App() {
         <DialogContent className="bg-graphite border-gold/20 text-white sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-gold uppercase italic text-center">
-              {authMode === 'login' ? '🔐 Bem-vindo à Ouro Preto' : '📝 Crie sua conta'}
+              {authMode === 'login' ? '🔐 Bem-vindo ao Nosso Sabor' : '📝 Crie sua conta'}
             </DialogTitle>
           </DialogHeader>
           <div className="py-6 space-y-4 text-center">
@@ -2307,9 +2290,9 @@ export default function App() {
                               />
                             </div>
                             <div className="space-y-1 flex-1">
-                              <span className="text-[8px] font-black uppercase text-gold tracking-widest leading-none">Chave PIX (CNPJ)</span>
-                              <p className="text-sm font-mono font-bold text-white break-all">45.890.123/0001-45</p>
-                              <p className="text-[10px] font-bold text-white/40 uppercase">Pizzaria Ouro Preto</p>
+                              <span className="text-[8px] font-black uppercase text-gold tracking-widest leading-none">Chave PIX</span>
+                              <p className="text-sm font-mono font-bold text-white break-all">SUA_CHAVE_PIX_AQUI</p>
+                              <p className="text-[10px] font-bold text-white/40 uppercase">Pizzaria Premium</p>
                             </div>
                           </div>
                           
@@ -2317,7 +2300,7 @@ export default function App() {
                             <div className="flex items-center gap-2 bg-gold/5 p-2 rounded-lg border border-gold/20">
                               <AlertCircle className="h-4 w-4 text-gold shrink-0" />
                               <p className="text-[9px] font-black text-gold uppercase leading-tight tracking-wider">
-                                Confirme se o recebedor é PIZZARIA OURO PRETO antes de pagar.
+                                Confirme os dados antes de pagar.
                               </p>
                             </div>
 
@@ -2326,11 +2309,11 @@ export default function App() {
                               size="sm" 
                               className="w-full text-white/40 hover:text-white border border-white/5 h-10 font-black uppercase text-[10px] tracking-widest"
                               onClick={() => {
-                                navigator.clipboard.writeText('45890123000145');
+                                navigator.clipboard.writeText('SUA_CHAVE_PIX_AQUI');
                                 toast.success('Chave PIX copiada!');
                               }}
                             >
-                              Copiar Chave CNPJ
+                              Copiar Chave PIX
                               </Button>
                               <Button 
                                 onClick={() => {
@@ -2346,7 +2329,7 @@ Cliente: ${customerName}
 Total: R$ ${total}
 Pagamento: PIX
 Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimento para iniciar a produção!`;
-                                  window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                                  window.open(`https://wa.me/${PIZZARIA_PHONE}?text=${encodeURIComponent(msg)}`, '_blank');
                                 }}
                                 className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] tracking-widest h-10 mt-2"
                               >
@@ -2485,13 +2468,13 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                               
                               <div className="space-y-3">
                                 <div>
-                                  <p className="text-sm font-mono font-black text-white italic">45.890.123/0001-45</p>
-                                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mt-1">Beneficiário: Ouro Preto Pizzaria</p>
+                                  <p className="text-sm font-mono font-black text-white italic">SUA_CHAVE_PIX_AQUI</p>
+                                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mt-1">Beneficiário: Pizzaria da Casa</p>
                                 </div>
                                 <Button 
                                   className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black uppercase text-[10px] tracking-widest h-10 rounded-xl"
                                   onClick={() => {
-                                    navigator.clipboard.writeText('45890123000145');
+                                    navigator.clipboard.writeText('SUA_CHAVE_PIX_AQUI');
                                     toast.success('Chave PIX copiada!');
                                   }}
                                 >
@@ -2514,7 +2497,7 @@ Cliente: ${customerName}
 Total: R$ ${total}
 Pagamento: PIX
 Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimento para iniciar a produção!`;
-                                window.open(`https://wa.me/5522998487785?text=${encodeURIComponent(msg)}`, '_blank');
+                                window.open(`https://wa.me/${PIZZARIA_PHONE}?text=${encodeURIComponent(msg)}`, '_blank');
                               }}
                               className="w-full bg-green-500 hover:bg-green-600 text-white font-black uppercase text-[10px] tracking-widest h-14 rounded-2xl shadow-lg shadow-green-500/20 flex items-center justify-center gap-3"
                             >
@@ -2540,7 +2523,7 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                             <div className="flex justify-between items-center mb-6">
                               <div className="space-y-1">
                                  <h5 className="text-[10px] font-black uppercase tracking-widest text-gold italic">Gold Member</h5>
-                                 <p className="text-white font-black uppercase italic tracking-tighter">Ouro Preto Loyalty</p>
+                                 <p className="text-white font-black uppercase italic tracking-tighter">Programa de Fidelidade</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-3xl font-black text-white italic tracking-tighter">{loyaltyPoints}</span>
@@ -2589,7 +2572,7 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                           <div className="text-center space-y-3">
                             <h4 className="text-lg font-black uppercase italic tracking-tighter text-white">Sua Opinião Vale Ouro</h4>
                             <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest max-w-[200px] mx-auto leading-relaxed">
-                              Avalie sua experiência e nos ajude a evoluir o sabor de Ouro Preto.
+                              Avalie sua experiência e nos ajude a evoluir ainda mais.
                             </p>
                           </div>
                           
@@ -2770,15 +2753,15 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                   <PizzaIcon className="h-6 w-6" />
                 </div>
                 <h2 className="text-2xl font-extrabold tracking-tighter text-gold">
-                  OURO <span className="text-white">PRETO</span>
+                  PIZZARIA <span className="text-white">DA CASA</span>
                 </h2>
               </div>
               <p className="text-white/50 text-sm leading-relaxed max-w-xs">
-                A melhor pizzaria de Conselheiro Paulino. Ingredientes selecionados e massa artesanal feita com amor.
+                A melhor pizzaria da região. Ingredientes selecionados e massa feita com amor.
               </p>
               <div className="space-y-3">
                 <a 
-                  href="https://wa.me/5522998487785" 
+                  href={`https://wa.me/${PIZZARIA_PHONE}`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="flex items-center gap-3 text-sm text-white/70 hover:text-gold transition-colors"
@@ -2786,19 +2769,19 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                   <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
                     <MessageCircle className="h-4 w-4" />
                   </div>
-                  (22) 99848-7785
+                  WhatsApp
                 </a>
                 <a 
-                  href="tel:22998487785" 
+                  href={`tel:${PIZZARIA_PHONE}`} 
                   className="flex items-center gap-3 text-sm text-white/70 hover:text-gold transition-colors"
                 >
                   <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
                     <Phone className="h-4 w-4" />
                   </div>
-                  (22) 99848-7785
+                  Telefone
                 </a>
                 <a 
-                  href="https://www.instagram.com/pizzariaelanchoneteouropreto/" 
+                  href="https://www.instagram.com/pizzaria_da_casa/" 
                   target="_blank" 
                   rel="noreferrer"
                   className="flex items-center gap-3 text-sm text-white/70 hover:text-gold transition-colors"
@@ -2806,7 +2789,7 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                   <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
                     <Instagram className="h-4 w-4" />
                   </div>
-                  @pizzariaelanchoneteouropreto
+                  @pizzariadacasa
                 </a>
               </div>
             </div>
@@ -2839,9 +2822,9 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
                 <div className="flex gap-4">
                   <MapPin className="h-6 w-6 text-gold shrink-0" />
                   <div className="space-y-3">
-                    <span className="text-white/60 leading-relaxed block">Av. dos Ferroviários, 1517 - Conselheiro Paulino, Nova Friburgo - RJ, 28633-010</span>
+                    <span className="text-white/60 leading-relaxed block">Conselheiro Paulino, Nova Friburgo - RJ</span>
                     <a 
-                      href="https://www.google.com/maps/search/?api=1&query=Av.+dos+Ferroviários,+1517+-+Conselheiro+Paulino,+Nova+Friburgo+-+RJ,+28633-010" 
+                      href="https://www.google.com/maps/search/?api=1&query=Conselheiro+Paulino,+Nova+Friburgo+-+RJ" 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gold hover:text-white transition-colors"
@@ -2861,7 +2844,7 @@ Estou enviando o print do comprovante em anexo. Por favor, confirmem o recebimen
           <Separator className="bg-white/10 mb-8" />
           
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-white/20">
-            <p>© 2024 Pizzaria Ouro Preto. Sabor que vem do forno.</p>
+            <p>© 2024 Pizzaria da Casa. Sabor que vem do forno.</p>
             <div className="flex gap-8 items-center">
               <button onClick={() => navigate('/admin')} className="hover:text-gold transition-colors">Admin</button>
               <a href="#" className="hover:text-white transition-colors">Privacidade</a>
